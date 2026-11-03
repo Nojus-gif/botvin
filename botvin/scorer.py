@@ -16,7 +16,7 @@ class Thresholds:
     max_price: float = 400.0          # never alert on items above this total
     shipping_cost: float = 3.5        # what you pay to get it shipped to you
     resell_cost: float = 0.0          # e.g. packaging; Vinted sellers pay no fee
-    max_age_minutes: float = 90.0     # ignore listings older than this
+    max_age_minutes: float = 60.0     # older than this and still unsold = not a good deal
     high_priority_profit: float = 50.0
     # Demand (likes per hour since upload). Popular brands get seen by lots of
     # people fast; few likes after a while means it won't resell quickly.

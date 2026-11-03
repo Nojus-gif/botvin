@@ -299,7 +299,8 @@ class Bot:
             if v.is_deal:
                 self.notifier.send(item, est, v, heating_up=True)
                 self.store.record_alert(item, est.resale, v.profit)
-        elif not track.get("followup") and not est.excluded:
+        elif (not track.get("followup") and not est.excluded
+              and (demand.minutes or 0) <= self.t.max_age_minutes):
             self.notifier.send(item, est, v, confirmed=True)
             self.store.set_followup(item.id)
 

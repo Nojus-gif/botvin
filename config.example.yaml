@@ -13,7 +13,7 @@ thresholds:
   min_confidence: 0.6
   max_price: 400
   shipping_cost: 3.5
-  max_age_minutes: 90
+  max_age_minutes: 60          # unsold after an hour = not a good deal, never alerted
   high_priority_profit: 50
   # Demand = likes per hour since upload. Promising items are re-checked
   # 5, 10, 15, 25, 40 and 60 min after upload. Unsold after an hour with only
