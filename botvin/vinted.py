@@ -178,6 +178,21 @@ class VintedClient:
                 log.debug("skipping unparsable item: %s", e)
         return items
 
+    def find_item(self, item_id: int, title: str) -> Item | None:
+        """Look one item up through search (which, unlike the item page, reliably
+        carries favourite_count / view_count): search its title, match the id."""
+        text = " ".join((title or "").split()[:10])[:80]
+        if not text:
+            return None
+        for order in ("relevance", "newest_first"):
+            try:
+                for it in self.search(text, order=order, per_page=40):
+                    if it.id == item_id:
+                        return it
+            except VintedError as e:
+                log.debug("find_item search failed: %s", e)
+        return None
+
     def item_page(self, url: str) -> dict:
         """Fetch an item's web page and extract upload time + description.
         Returns {"uploaded_at": ts|None, "source": str, "description": str}."""
@@ -188,7 +203,9 @@ class VintedClient:
         if r.status_code != 200:
             raise VintedError(f"item page {url} -> HTTP {r.status_code}")
         m = re.search(r"/items/(\d+)", url)
-        return parse_item_page(r.text, item_id=int(m.group(1)) if m else None)
+        info = parse_item_page(r.text, item_id=int(m.group(1)) if m else None)
+        info["_html"] = r.text                     # for `botvin page --debug`
+        return info
 
     def probe(self, search_text: str = "columbia") -> list[str]:
         """Diagnostics: try every known endpoint and report what happens."""

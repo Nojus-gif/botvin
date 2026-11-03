@@ -63,6 +63,7 @@ def main(argv: list[str] | None = None) -> None:
     sub.add_parser("probe", help="check that the bot can reach Vinted's search")
     pg = sub.add_parser("page", help="show the upload time the bot reads from an item page")
     pg.add_argument("url")
+    pg.add_argument("--debug", action="store_true", help="show where likes/views/sold appear in the page")
     chk = sub.add_parser("check", help="score a hypothetical listing offline")
     chk.add_argument("title")
     chk.add_argument("--price", type=float, required=True, help="total price incl. Vinted fee")
@@ -117,8 +118,20 @@ def main(argv: list[str] | None = None) -> None:
         else:
             print("upload time NOT FOUND")
         print(f"likes: {info.get('likes')}  views: {info.get('views')}  sold: {info.get('sold')}")
+        import re as _re
+        m = _re.search(r"/items/(\d+)", args.url)
+        if m and info.get("likes") is None:
+            found = client.find_item(int(m.group(1)), args.url.split("/items/")[1].split("?")[0]
+                                     .split("-", 1)[-1].replace("-", " "))
+            print(f"likes via search: {found.favourites if found else 'not found'}  "
+                  f"views via search: {found.views if found else '-'}")
         print(f"gender: {info.get('gender')}  colour: {info.get('colour')}")
         print(f"description: {info['description'][:200]!r}")
+        if args.debug:
+            from .itempage import debug_matches
+            print("--- page snippets mentioning likes/views/sold:")
+            for snip in debug_matches(info.get("_html", "")):
+                print("  ", snip)
         return
 
     if args.cmd == "test-notify":

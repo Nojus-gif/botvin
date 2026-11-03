@@ -123,8 +123,9 @@ def parse_item_page(page: str, now: float | None = None, item_id: int | None = N
     if jm and len(_json_unescape(jm.group(1))) > len(desc):
         desc = _json_unescape(jm.group(1))
     return {"uploaded_at": uploaded, "source": source, "description": desc.strip(),
-            "likes": _first_int(scope, ("favourite_count", "favorite_count", "favourites_count")),
-            "views": _first_int(scope, ("view_count", "views_count")),
+            "likes": _first_int(scope, ("favourite_count", "favorite_count", "favourites_count",
+                                        "favouriteCount", "favoriteCount", "favouritesCount")),
+            "views": _first_int(scope, ("view_count", "views_count", "viewCount", "viewsCount")),
             "sold": _is_sold(scope),
             "gender": _gender(page, flat),
             "colour": _colour(scope, page)}
@@ -175,6 +176,22 @@ def _item_scope(flat: str, item_id: int | None, radius: int = 4000) -> str:
     if not m:
         return flat
     return flat[max(0, m.start() - radius): m.end() + radius]
+
+
+def debug_matches(page: str, limit: int = 25) -> list[str]:
+    """Snippets around anything that looks like likes/views/sold data, to find
+    the right keys when Vinted changes its page."""
+    flat = page.replace('\\"', '"')
+    out, seen = [], set()
+    rx = re.compile(r'.{0,50}(?:favou?rit\w*|view_?count|viewCount|"likes?"|is_closed|is_sold|'
+                    r'is_reserved|closing|status_code|item_status).{0,70}', re.I)
+    for m in rx.finditer(flat):
+        snip = " ".join(m.group(0).split())
+        if snip not in seen:
+            seen.add(snip); out.append(snip)
+        if len(out) >= limit:
+            break
+    return out
 
 
 def _first_int(flat: str, keys: tuple[str, ...]) -> int | None:

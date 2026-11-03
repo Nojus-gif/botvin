@@ -310,6 +310,9 @@ class PageClient(FakeClient):
     def __init__(self, batches, pages):
         super().__init__(batches)
         self.pages = pages
+    found = {}
+    def find_item(self, item_id, title):
+        return self.found.get(item_id)
     def item_page(self, url):
         item_id = int(url.rsplit("/", 1)[1])
         return {"uploaded_at": None, "source": "none", "description": "",
@@ -521,3 +524,20 @@ def test_item_page_gender_and_colour():
     r = parse_item_page(page, now=time.time(), item_id=42)
     assert r["gender"] == "women" and r["colour"] == "Rožinė"
     assert parse_item_page("<p>x</p>", now=time.time())["gender"] is None
+
+
+def test_watchlist_gets_likes_from_search_when_page_has_none(tmp_path, monkeypatch):
+    import botvin.pricing as p
+    monkeypatch.setattr(p.PriceModel, "season_mult", lambda self, c, w=None, b=None: 1.25)
+    item = make("Kurtka Columbia", 28.0, "Columbia", id_=31)
+    item.uploaded_at = None
+    client = PageClient([[], [item]], {})                 # pages never show likes
+    client.found = {31: make("Kurtka Columbia", 28.0, "Columbia", id_=31, fav=8)}
+    notifier = FakeNotifier()
+    bot = _watch_bot(tmp_path, client, notifier)
+    bot.run(once=True)
+    bot.poll_feed({"name": "t"})
+    _age(bot.store, 31, 12)
+    bot.check_watchlist()
+    assert bot.store.tracking(31)["fav_last"] == 8
+    assert notifier.sent == [(31, True)]                  # 8 likes in 12 min = 40/h: hot

@@ -165,7 +165,13 @@ class Bot:
                 page = {}
             start = row.get("uploaded_at") or page.get("uploaded_at") or row["first_seen"]
             sold = bool(page.get("sold"))
-            self.store.update_check(item.id, likes=page.get("likes"), views=page.get("views"),
+            likes, views = page.get("likes"), page.get("views")
+            if likes is None and not sold:
+                # The item page doesn't show counts; search results do.
+                found = self.client.find_item(item.id, item.title)
+                if found:
+                    likes, views = found.favourites, found.views
+            self.store.update_check(item.id, likes=likes, views=views,
                                     sold=sold, next_check=None if sold else self._next_check(start, now),
                                     now=now)
             done += 1
