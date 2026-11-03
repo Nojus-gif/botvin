@@ -773,3 +773,14 @@ def test_no_alerts_for_listings_older_than_an_hour():
     assert evaluate(fresh, model.estimate(fresh, when=NOV), t).is_deal
     v = evaluate(old, model.estimate(old, when=NOV), t)
     assert not v.is_deal and any("listed 65 min ago" in r for r in v.reasons)
+
+
+def test_golden_goose_and_philippe_model():
+    gg = make("Golden Goose Superstar białe", 60, "Golden Goose", size="38", status="Labai gera")
+    est = model.estimate(gg, when=NOV)
+    assert est.brand == "Golden Goose" and est.category == "shoes" and est.resale > 120
+    assert evaluate(gg, est, Thresholds()).is_deal
+    pm = make("Philipe Model Tropez", 30, "", size="43", status="Labai gera")      # misspelt, no brand tag
+    est = model.estimate(pm, when=NOV)
+    assert est.brand == "Philippe Model" and est.category == "shoes" and 70 <= est.resale <= 110
+    assert model.match_brand(make("GGDB sneakers", 50, ""))[0] == "Golden Goose"
