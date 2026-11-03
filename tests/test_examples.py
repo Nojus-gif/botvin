@@ -145,20 +145,23 @@ def test_item_box_fallback():
 def test_demand_levels():
     from botvin.scorer import measure_demand
     t = Thresholds()
-    assert measure_demand(5, 60, 10, t).level == "hot"        # 30 likes/h
-    assert measure_demand(2, 10, 10, t).level == "warm"       # 12 likes/h
+    assert measure_demand(6, 60, 10, t).level == "hot"        # 36 likes/h
+    assert measure_demand(3, 10, 5, t).level == "warm"        # 3 likes in 5 min: promising, not proof
+    assert measure_demand(3, 10, 10, t).level == "warm"       # 18 likes/h, not judged yet
     assert measure_demand(0, 5, 5, t).level == "normal"       # too early to judge
     assert measure_demand(3, 10, None, t).level == "unknown"  # age unknown
-    # The user's rule: 5 likes in an hour is not a deal.
+    # The user's rules: 5 likes in an hour, or 10 likes in an hour, is not a deal.
     assert measure_demand(5, 100, 60, t).level == "cold"
-    assert measure_demand(1, 10, 20, t).level == "cold"       # 3 likes/h after 20 min
+    assert measure_demand(10, 100, 60, t).level == "cold"
+    assert measure_demand(4, 0, 60, t).level == "cold"        # the Arc'teryx: 4 likes in 60 min
+    assert measure_demand(2, 10, 20, t).level == "cold"       # 6 likes/h after 20 min
     # Lots of views but nobody likes it -> cold even if the rate looks OK
-    assert measure_demand(5, 200, 20, t).level == "cold"
+    assert measure_demand(6, 200, 15, t).level == "cold"
     # 1 like within 20 s must not count as 180/h
     assert measure_demand(1, 2, 0.3, t).likes_per_hour == 20
     assert measure_demand(1, 2, 0.3, t).level == "normal"
-    # relative to category: 6/h when comparable items get 2/h -> hot
-    assert measure_demand(3, 30, 30, t, category_rate=2.0, category_samples=8).level == "hot"
+    # Being "2x usual for this brand" no longer makes an item hot
+    assert measure_demand(4, 0, 60, t, category_rate=1.8, category_samples=8).level == "cold"
 
 
 def test_hot_demand_relaxes_margin():
@@ -167,7 +170,7 @@ def test_hot_demand_relaxes_margin():
     est = model.estimate(item, when=NOV)
     t = Thresholds(min_profit=15)
     assert not evaluate(item, est, t, measure_demand(0, 5, 10, t)).is_deal
-    v = evaluate(item, est, t, measure_demand(6, 80, 10, t))
+    v = evaluate(item, est, t, measure_demand(6, 60, 10, t))
     assert v.is_deal and v.priority == "high"
 
 
@@ -339,7 +342,7 @@ def test_watchlist_alerts_when_item_heats_up(tmp_path, monkeypatch):
     bot.poll_feed({"name": "t"})
     assert notifier.sent == []
     assert bot.store.tracking(11)["next_check"] is not None      # on the watchlist
-    pages[11] = {"likes": 7, "views": 60}                         # 7 likes in 12 min
+    pages[11] = {"likes": 7, "views": 60}                         # 7 likes in 12 min = 35/h
     _age(bot.store, 11, 12)
     assert bot.check_watchlist() == 1
     assert notifier.sent == [(11, True)]
@@ -421,3 +424,29 @@ def test_adidas_needs_a_really_great_deal():
     # A genuinely great Adidas deal (premium model, near-free) still alerts.
     great = make("Adidas Gore-Tex striukė", 2, "Adidas", size="L", status="Labai gera")
     assert evaluate(great, model.estimate(great, when=NOV), t).is_deal
+
+
+def test_gloves_are_not_puffers():
+    gloves = make("Rękawiczki zimowe the north face", 17.53, "The North Face", size="L")
+    est = model.estimate(gloves, when=NOV)
+    assert est.category == "accessory" and est.resale < 30
+    assert not evaluate(gloves, est, Thresholds()).is_deal
+
+
+def test_arcteryx_with_4_likes_in_an_hour_is_not_confirmed(tmp_path, monkeypatch):
+    import botvin.pricing as p
+    monkeypatch.setattr(p.PriceModel, "season_mult", lambda self, c, w=None: 1.25)
+    item = make("Arcteryx jacket", 116.20, "Arc'teryx", id_=21, status="Labai gera")
+    item.uploaded_at = None
+    pages = {}
+    notifier = FakeNotifier()
+    kinds = []
+    notifier.send = lambda it, est, v, heating_up=False, confirmed=False: kinds.append(
+        "confirmed" if confirmed else "heating" if heating_up else "new")
+    bot = _watch_bot(tmp_path, PageClient([[], [item]], pages), notifier)
+    bot.run(once=True)
+    bot.poll_feed({"name": "t"})
+    pages[21] = {"likes": 4}
+    _age(bot.store, 21, 60)
+    bot.check_watchlist()
+    assert "confirmed" not in kinds

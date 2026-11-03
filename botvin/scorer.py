@@ -20,9 +20,11 @@ class Thresholds:
     high_priority_profit: float = 50.0
     # Demand (likes per hour since upload). Popular brands get seen by lots of
     # people fast; few likes after a while means it won't resell quickly.
-    hot_likes_per_hour: float = 15.0
-    warm_likes_per_hour: float = 8.0
-    cold_likes_per_hour: float = 8.0  # below this after cold_after_minutes -> not a deal
+    # Rule of thumb: unsold after an hour with only ~10 likes = weak demand.
+    hot_likes_per_hour: float = 20.0
+    hot_min_likes: int = 5            # 3 likes in 5 min is not proof of anything
+    warm_likes_per_hour: float = 12.0
+    cold_likes_per_hour: float = 12.0  # below this after cold_after_minutes -> not a deal
     cold_after_minutes: float = 15.0
     cold_like_view_ratio: float = 0.04  # <4 likes per 100 views (once 60+ views) -> cold
     min_watch_minutes: float = 3.0    # need this long before a rate means anything
@@ -52,13 +54,12 @@ class Demand:
 
     def describe(self) -> str:
         if self.minutes is None:
-            return f"♥ {self.likes} · 👁 {self.views}"
+            return f"♥ {self.likes}" + (f" · 👁 {self.views}" if self.views else "")
         parts = [f"♥ {self.likes} in {self.minutes:.0f} min"]
         if self.likes_per_hour is not None:
             parts[0] += f" ({self.likes_per_hour:.0f}/h)"
-        parts.append(f"👁 {self.views}")
-        if self.relative is not None and self.category_samples >= 5:
-            parts.append(f"{self.relative:.1f}× usual for this brand/type")
+        if self.views:
+            parts.append(f"👁 {self.views}")
         if self.level in ("hot", "warm", "cold"):
             parts.append({"hot": "🔥 HOT", "warm": "warm", "cold": "❄ low demand"}[self.level])
         elif self.level == "normal":
@@ -78,10 +79,9 @@ def measure_demand(likes: int, views: int, minutes: float | None, t: "Thresholds
     hours = max(minutes, t.min_watch_minutes) / 60
     d.likes_per_hour = likes / hours
     d.views_per_hour = views / hours
-    hot = d.likes_per_hour >= t.hot_likes_per_hour and likes >= 3
-    # Twice as liked as comparable items, with a meaningful baseline, also counts.
-    if d.relative is not None and category_samples >= 5 and d.relative >= 2 and likes >= 3:
-        hot = True
+    # Only absolute likes count. (Comparing with "usual for this brand" made
+    # 4 likes/hour look hot when everything else was also unpopular.)
+    hot = d.likes_per_hour >= t.hot_likes_per_hour and likes >= t.hot_min_likes
     judged = minutes >= t.cold_after_minutes
     # Seen by lots of people but few of them liked it: weak real interest.
     low_ratio = views >= 60 and likes / views < t.cold_like_view_ratio

@@ -16,10 +16,12 @@ thresholds:
   max_age_minutes: 90
   high_priority_profit: 50
   # Demand = likes per hour since upload. Promising items are re-checked
-  # 5, 10, 15, 25, 40 and 60 min after upload.
-  hot_likes_per_hour: 15       # hot: high priority, lower margin OK, "demand confirmed" alert
-  warm_likes_per_hour: 8
-  cold_likes_per_hour: 8       # below this after cold_after_minutes -> not a deal
+  # 5, 10, 15, 25, 40 and 60 min after upload. Unsold after an hour with only
+  # ~10 likes means weak demand at that price.
+  hot_likes_per_hour: 20       # hot: high priority, lower margin OK, "demand confirmed" alert
+  hot_min_likes: 5
+  warm_likes_per_hour: 12
+  cold_likes_per_hour: 12      # below this after cold_after_minutes -> not a deal
   cold_after_minutes: 15
   cold_like_view_ratio: 0.04   # <4 likes per 100 views (60+ views) -> not a deal
   hot_margin_relief: 0.25      # 0.6 min margin becomes 0.35 for hot items

@@ -20,11 +20,10 @@ DATA_FILE = Path(__file__).parent / "data" / "brands.yaml"
 # Each keyword is matched at the START of a word, so "kurtk" matches "kurtka",
 # "kurtki", "kurtką", and "takki" matches "untuvatakki" via the puffer rule.
 CATEGORY_KEYWORDS: list[tuple[str, list[str]]] = [
-    ("puffer", ["dūnu", "~dūnu", "sulejope", "~untejope", "talvejope", "ziemas jaka", "puffer", "down jacket", "down", "puch", "pūk", "pliumin", "~untuva",
-                "~daunen", "~dunjack", "~dunjakke", "doudoune", "piumino", "plumas", "zimow", "žiemin",
-                "talvitakki", "winterjacke", "insulated"]),
-    ("shell", ["hardshell", "shell", "kurtka przeciwdeszcz", "regenjacke",
-               "sadetakki", "waterproof"]),
+    ("puffer", ["sulejope", "~untejope", "talvejope", "ziemas jaka", "puffer", "down jacket",
+                "~untuva", "~daunen", "~dunjack", "~dunjakke", "doudoune", "piumino", "plumas",
+                "talvitakki", "winterjacke"]),
+    ("shell", ["hardshell", "shell", "regenjacke", "sadetakki"]),
     ("vest", ["vest", "gilet", "bezrękaw", "liemen", "liivi", "weste", "smanicato"]),
     ("fleece", ["flīs", "~flīs", "fleece", "polar", "flis", "fliis", "fleecejacke", "polaire"]),
     ("coat", ["mētel", "mantel", "coat", "płaszcz", "palt", "mantel", "manteau", "cappotto", "abrigo", "parka", "trench"]),
@@ -53,6 +52,16 @@ CATEGORY_KEYWORDS: list[tuple[str, list[str]]] = [
     ("accessory", ["cap", "hat", "beanie", "czapk", "kepur", "pipo", "mütze", "scarf",
                    "szalik", "šalik", "gloves", "rękawiczk", "pirštin", "belt", "pasek", "diržas"]),
 ]
+
+# Words that describe a jacket rather than name an item ("kurtka ZIMOWA",
+# "PUCHOWA kurtka"). They only turn a jacket/coat into a puffer/shell -- so
+# "rękawiczki zimowe" (winter gloves) stay gloves.
+MODIFIERS: list[tuple[str, list[str]]] = [
+    ("puffer", ["dūnu", "~dūnu", "down", "puch", "pūk", "pliumin", "zimow", "žiemin", "ziemas",
+                "insulated", "winter", "talve"]),
+    ("shell", ["przeciwdeszcz", "waterproof", "neperšlamp", "gore-tex", "goretex"]),
+]
+UPGRADABLE = {"jacket", "coat", "other"}
 
 CONDITION_MULT = {
     "new_with_tags": 1.25,
@@ -160,6 +169,7 @@ class PriceModel:
         self.premium = {normalize(k): v for k, v in (data.get("premium_keywords") or {}).items()}
         self._premium_res = {k: _word_prefix_pattern([k]) for k in self.premium}
         self._category_res = [(cat, _word_prefix_pattern(words)) for cat, words in CATEGORY_KEYWORDS]
+        self._modifier_res = [(cat, _word_prefix_pattern(words)) for cat, words in MODIFIERS]
 
         self._alias_res: list[tuple[str, re.Pattern]] = []
         for name, info in self.brands.items():
@@ -188,11 +198,25 @@ class PriceModel:
         return None, False
 
     def detect_category(self, text: str) -> str:
+        """The item word that appears FIRST in the title decides the type
+        ("Rękawiczki zimowe the north face" -> gloves, not a jacket)."""
         t = normalize(text)
-        for cat, rx in self._category_res:
-            if _contains(rx, t):
-                return cat
-        return "other"
+        variants = (t, _strip_accents(t))
+        best: tuple[int, int, int] | None = None
+        category = "other"
+        for order, (cat, rx) in enumerate(self._category_res):
+            for v in variants:
+                m = rx.search(v)
+                if m:
+                    key = (m.start(), -(m.end() - m.start()), order)
+                    if best is None or key < best:
+                        best, category = key, cat
+                    break
+        if category in UPGRADABLE:
+            for cat, rx in self._modifier_res:
+                if _contains(rx, t):
+                    return cat
+        return category
 
     # "a la UGG", "UGG style", "tipo Moncler", "kaip Arcteryx", "w stylu Stone Island"...
     _STYLE_BEFORE = (r"a\s*'?\s*la|ala|à\s+la|style|type|typu|typ|w\s+typie|tipo|tipas|kaip|panaš\w*\s+į|w\s+stylu|"

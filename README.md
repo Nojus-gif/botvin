@@ -14,6 +14,8 @@ For every new listing:
    Unknown brands are skipped.
 2. **Category**: from title keywords in EN/LT/PL/FI/DE/FR/ES/IT/NL
    (`kurtka zimowa` → puffer, `kevytuntuvatakki` → puffer, `striukė` → jacket…).
+   The item word that comes first decides, so `rękawiczki zimowe` (winter
+   gloves) are gloves; "winter", "down" or "gore-tex" only upgrade a jacket.
 3. **Base resale value**: the brand's table value × the category factor (or a
    per-brand override; Nike shoes ≠ Nike t-shirts).
 4. **Multipliers**:
@@ -37,10 +39,10 @@ For every new listing:
    fast, so few likes after a while means it won't resell quickly. Every
    promising item goes on a watchlist and its page is re-opened 5, 10, 15, 25,
    40 and 60 minutes after upload to read likes, views and whether it sold.
-   - **Cold**: fewer than 8 likes/hour after 15 min, or 60+ views with under
-     4% liking it. It's no longer a deal (5 likes in an hour = skip).
-   - **Hot**: 15+ likes/hour (at least 3 likes), or 2× the usual rate for that
-     brand and type. High priority, and it may pass with a lower margin.
+   - **Cold**: fewer than 12 likes/hour after 15 min, or 60+ views with under
+     4% liking it. It's no longer a deal (unsold after an hour with ~10 likes = skip).
+   - **Hot**: 20+ likes/hour and at least 5 likes. High priority, and it may
+     pass with a lower margin. Only real likes count, not "more than usual".
    - **Alerts**: you get the first alert as soon as the price looks right,
      marked "too early to judge demand". If it then turns hot, you get one
      "✅ Demand confirmed" follow-up. An item that wasn't cheap enough at first
