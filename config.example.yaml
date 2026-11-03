@@ -4,7 +4,7 @@ domain: vinted.lt              # Vinted shows cross-border EU listings on every 
 poll_interval: 20              # seconds between sweeps (jittered ±20%)
 min_request_interval: 2.0      # seconds between any two HTTP requests -- don't go lower
 database: botvin.db
-fetch_descriptions: true       # fetch description of candidate deals to catch damage/fakes
+fetch_descriptions: true       # open promising items' pages: real upload time + description
 alert_on_startup: false        # false = first sweep only records existing listings
 
 thresholds:

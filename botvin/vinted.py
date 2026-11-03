@@ -18,6 +18,7 @@ import random
 import time
 from typing import Any
 
+from .itempage import parse_item_page
 from .models import Item
 
 log = logging.getLogger(__name__)
@@ -176,19 +177,16 @@ class VintedClient:
                 log.debug("skipping unparsable item: %s", e)
         return items
 
-    def description(self, item_id: int) -> str:
-        """Best effort: fetch the item description (not included in search results)."""
-        for url in (f"{self.base}/api/v2/items/{item_id}/details",
-                    f"{self.api}/svc-catalogue/items/{item_id}"):
-            try:
-                data = self._get(url, retries=1)
-            except VintedError:
-                continue
-            node = data.get("item") or data
-            desc = node.get("description") if isinstance(node, dict) else None
-            if desc:
-                return desc
-        return ""
+    def item_page(self, url: str) -> dict:
+        """Fetch an item's web page and extract upload time + description.
+        Returns {"uploaded_at": ts|None, "source": str, "description": str}."""
+        self._throttle()
+        r = self.session.get(url, timeout=20, headers={"Accept": "text/html,application/xhtml+xml",
+                                                       "Referer": self.base + "/"})
+        self.last_status = r.status_code
+        if r.status_code != 200:
+            raise VintedError(f"item page {url} -> HTTP {r.status_code}")
+        return parse_item_page(r.text)
 
     def probe(self, search_text: str = "columbia") -> list[str]:
         """Diagnostics: try every known endpoint and report what happens."""
@@ -212,6 +210,16 @@ class VintedClient:
                     out.append(f"   item_box={raw.get('item_box')!r}")
                     out.append(f"   -> title={it.title!r} brand={it.brand!r} size={it.size!r} "
                                f"condition={it.condition} total={it.total_price} likes={it.favourites}")
+                if items and not legacy:
+                    it = Item.from_api(items[0], self.base)
+                    try:
+                        page = self.item_page(it.url)
+                        age = (f"{(time.time() - page['uploaded_at']) / 60:.0f} min ago"
+                               if page["uploaded_at"] else "NOT FOUND")
+                        out.append(f"item page {it.url}: uploaded {age} (via {page['source']}); "
+                                   f"description: {page['description'][:80]!r}")
+                    except VintedError as e:
+                        out.append(f"item page: {e}")
             except VintedError as e:
                 out.append(f"{label}: {e}")
         return out

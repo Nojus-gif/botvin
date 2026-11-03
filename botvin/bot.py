@@ -51,24 +51,33 @@ class Bot:
             return None                        # already sent; don't spam
         if track.get("description"):
             item.description = track["description"]
+        if track.get("uploaded_at") and not item.uploaded_at:
+            item.uploaded_at = track["uploaded_at"]
 
         market = self.store.market(brand, category) if brand else (None, 0)
         demand = self._demand(item, track, brand, category)
         est = self.model.estimate(item, market)
         v = evaluate(item, est, self.t, demand)
 
-        # Only items that already look like deals are worth an extra request:
-        # the description may reveal damage ("uszkodzony zamek") or a fake.
-        if (v.is_deal and not first_pass and self.fetch_descriptions
+        # Open the item page only for promising items (one extra request each):
+        # it tells us the real upload time ("Įkelta prieš 19 val.") and the
+        # description, which may reveal damage ("uszkodzony zamek") or a fake.
+        promising = est.brand and not est.excluded and v.profit >= self.t.min_profit * 0.5
+        if (promising and not first_pass and self.fetch_descriptions
                 and track.get("description") is None):
             try:
-                item.description = self.client.description(item.id)
+                page = self.client.item_page(item.url)
             except VintedError as e:
-                log.debug("description fetch failed: %s", e)
-            self.store.set_description(item.id, item.description or "")
-            if item.description:
-                est = self.model.estimate(item, market)
-                v = evaluate(item, est, self.t, demand)
+                log.debug("item page failed: %s", e)
+                page = {"description": "", "uploaded_at": None, "source": "error"}
+            self.store.set_page_info(item.id, page["description"], page["uploaded_at"])
+            item.description = item.description or page["description"]
+            if page["uploaded_at"] and not item.uploaded_at:
+                item.uploaded_at = page["uploaded_at"]
+            track = self.store.tracking(item.id)
+            demand = self._demand(item, track, brand, category)
+            est = self.model.estimate(item, market)
+            v = evaluate(item, est, self.t, demand)
 
         if is_new:
             self.store.mark_seen(item, est.brand, est.category)
@@ -83,9 +92,10 @@ class Bot:
         return v if is_new else None
 
     def _demand(self, item: Item, track: dict, brand: str | None, category: str):
-        """Likes/views per hour since we first saw the item. The bot polls every
-        ~20 s, so for anything listed after it started, first-seen ~= upload."""
-        if item.uploaded_at:                   # API still sent a timestamp
+        """Likes/views per hour since upload. Uses the item page's upload time
+        when known; otherwise first-seen, which is ~= upload for anything
+        listed after the bot started (it polls every ~20 s)."""
+        if item.uploaded_at:                   # from the API or the item page
             minutes = item.age_minutes
         elif track["from_startup"]:
             minutes = None                     # was already up when we started

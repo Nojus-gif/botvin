@@ -96,8 +96,8 @@ class FakeClient:
         self.batches = batches
     def search(self, **kw):
         return self.batches.pop(0)
-    def description(self, item_id):
-        return ""
+    def item_page(self, url):
+        return {"uploaded_at": None, "source": "none", "description": ""}
 
 
 class FakeNotifier:
@@ -186,3 +186,22 @@ def test_bot_alerts_when_existing_item_heats_up(tmp_path, monkeypatch):
     bot.poll_feed({"name": "t"})
     bot.poll_feed({"name": "t"})
     assert notifier.sent == [(7, True)]
+
+
+def test_item_page_upload_time():
+    from botvin.itempage import parse_item_page
+    now = 1_790_000_000.0
+    html_rel = '<div><span>L · Labai gera · Oakley · Įkelta prieš 19 val.</span></div>'
+    r = parse_item_page(html_rel, now)
+    assert r["source"] == "relative text" and (now - r["uploaded_at"]) == 19 * 3600
+    html_json = ('<meta property="og:description" content="Stan dobry, uszkodzony zamek.">'
+                 '<script>self.__next_f.push([1,"{\\"created_at_ts\\":%d,\\"updated_at_ts\\":%d}"])</script>'
+                 % (now - 1500, now - 60))
+    r = parse_item_page(html_json, now)
+    assert r["uploaded_at"] == now - 1500 and r["source"] == "created_at_ts"
+    assert r["description"] == "Stan dobry, uszkodzony zamek."
+    assert parse_item_page("<p>nothing here</p>", now)["uploaded_at"] is None
+
+
+def test_oakley_known():
+    assert model.match_brand(make("Bluza Oakley", 19.94, "Oakley"))[0] == "Oakley"

@@ -192,6 +192,10 @@ brands:
   "Hugo Boss":
     aliases: ["hugo boss", "boss"]
     base: 45
+  "Oakley":
+    aliases: ["oakley"]
+    base: 50
+    overrides: {hoodie: 38, sweater: 35, tshirt: 20, accessory: 40}
   "Lululemon":
     aliases: ["lululemon"]
     base: 45

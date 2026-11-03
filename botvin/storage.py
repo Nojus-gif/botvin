@@ -35,7 +35,8 @@ CREATE TABLE IF NOT EXISTS tracking (
     from_startup INTEGER NOT NULL DEFAULT 0,  -- already listed when bot started: age unknown
     brand TEXT,
     category TEXT,
-    description TEXT                          -- NULL = not fetched yet
+    description TEXT,                         -- NULL = item page not fetched yet
+    uploaded_at REAL                          -- from the item page, if found
 );
 CREATE INDEX IF NOT EXISTS tracking_bc ON tracking(brand, category, first_seen);
 CREATE TABLE IF NOT EXISTS alerts (
@@ -54,6 +55,10 @@ class Store:
     def __init__(self, path: str | Path = "botvin.db"):
         self.db = sqlite3.connect(str(path))
         self.db.executescript(SCHEMA)
+        cols = {r[1] for r in self.db.execute("PRAGMA table_info(tracking)")}
+        if "uploaded_at" not in cols:          # databases created by older versions
+            self.db.execute("ALTER TABLE tracking ADD COLUMN uploaded_at REAL")
+            self.db.commit()
 
     def is_seen(self, item_id: int) -> bool:
         return self.db.execute("SELECT 1 FROM seen WHERE id=?", (item_id,)).fetchone() is not None
@@ -105,8 +110,9 @@ class Store:
         row = cur.fetchone()
         return dict(zip([c[0] for c in cur.description], row)) if row else None
 
-    def set_description(self, item_id: int, text: str) -> None:
-        self.db.execute("UPDATE tracking SET description=? WHERE id=?", (text, item_id))
+    def set_page_info(self, item_id: int, description: str, uploaded_at: float | None) -> None:
+        self.db.execute("UPDATE tracking SET description=?, uploaded_at=? WHERE id=?",
+                        (description, uploaded_at, item_id))
         self.db.commit()
 
     def category_demand(self, brand: str, category: str, days: int = 14,
@@ -114,9 +120,10 @@ class Store:
         """Median likes/hour of comparable items we watched from their start."""
         since = time.time() - days * 86400
         rows = self.db.execute(
-            "SELECT fav_last, (last_seen - first_seen) / 60.0 FROM tracking"
-            " WHERE brand=? AND category=? AND first_seen>=? AND from_startup=0"
-            " AND (last_seen - first_seen) >= ?",
+            "SELECT fav_last, (last_seen - COALESCE(uploaded_at, first_seen)) / 60.0 FROM tracking"
+            " WHERE brand=? AND category=? AND first_seen>=?"
+            " AND (from_startup=0 OR uploaded_at IS NOT NULL)"
+            " AND (last_seen - COALESCE(uploaded_at, first_seen)) >= ?",
             (brand, category, since, min_minutes * 60)).fetchall()
         rates = [fav / (mins / 60) for fav, mins in rows if mins > 0]
         if not rates:
