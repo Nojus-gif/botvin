@@ -768,8 +768,8 @@ def test_tracksuit_set():
 
 def test_no_alerts_for_listings_older_than_an_hour():
     t = Thresholds()
-    fresh = make("Kurtka Columbia", 15.13, "Columbia", age_min=55)
-    old = make("Kurtka Columbia", 15.13, "Columbia", age_min=65)
+    fresh = make("Kurtka Columbia", 15.13, "Columbia", age_min=55, fav=20)
+    old = make("Kurtka Columbia", 15.13, "Columbia", age_min=65, fav=20)
     assert evaluate(fresh, model.estimate(fresh, when=NOV), t).is_deal
     v = evaluate(old, model.estimate(old, when=NOV), t)
     assert not v.is_deal and any("listed 65 min ago" in r for r in v.reasons)
