@@ -362,6 +362,5 @@ premium_keywords:
   "ultra mini": {mult: 1.3}
   "tasman": {mult: 1.3}
   "platform": {mult: 1.15}
-  "platformos": {mult: 1.15}
   "ghost piece": {mult: 1.3}
   "maya": {mult: 1.2, category: puffer}
