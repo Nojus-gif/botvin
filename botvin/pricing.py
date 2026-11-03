@@ -67,7 +67,7 @@ DEFAULT_EXCLUDED_SIZES = ["xxs", "xs", "xxl", "2xl", "xxxl", "3xl", "xxxxl", "4x
 
 # Kids' sizes on Vinted: "140 cm", "9-10 m.", "12 years", "8 lat", "6 ans", "18 mėn."...
 _AGE_UNITS = (r"m\.|m|metų|metai|mėn\.?|years?|yrs?|y|lat|lata|ans|jahre|años|anni|vuotta|"
-              r"months?|mo|mies\.?|miesięcy|kk|gadi|aastat")
+              r"months?|mois|mo|mies\.?|miesięcy|kk|gadi|aastat")
 _KIDS_SIZE_RES = [
     re.compile(r"\b(\d{2,3})\s*cm\b"),                                      # body height in cm
     re.compile(rf"\b\d{{1,2}}(?:\s*[-/]\s*\d{{1,2}})?\s*(?:{_AGE_UNITS})(?![\w])"),

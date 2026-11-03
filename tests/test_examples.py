@@ -227,7 +227,8 @@ def test_latvian_estonian_categories():
 
 @pytest.mark.parametrize("size,reason", [
     ("140 cm", "kids size"), ("152 cm / 11-12 m.", "kids size"), ("10 metų", "kids size"),
-    ("12 years", "kids size"), ("8 lat", "kids size"), ("18 mėn.", "kids size"),
+    ("12 years", "kids size"), ("10 ans / 140 cm", "kids size"), ("18-24 mois", "kids size"),
+    ("6XL", "extreme size"), ("8 lat", "kids size"), ("18 mėn.", "kids size"),
     ("XXL", "extreme size"), ("XXL / 44 / 16", "extreme size"), ("3XL", "extreme size"),
     ("XS", "extreme size"), ("XXS / 32 / 4", "extreme size"), ("XXXL", "extreme size"),
 ])
