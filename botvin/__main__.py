@@ -20,12 +20,36 @@ from .pricing import PriceModel
 from .scorer import Thresholds, evaluate
 
 
+EXAMPLE = Path(__file__).resolve().parent.parent / "config.example.yaml"
+PLACEHOLDER = "botvin-CHANGE-ME-to-something-random"
+
+
+def create_config(path: Path) -> None:
+    """First run: copy the example config and give it a private random ntfy topic."""
+    import secrets
+    topic = f"botvin-{secrets.token_hex(6)}"
+    text = EXAMPLE.read_text(encoding="utf-8").replace(PLACEHOLDER, topic)
+    path.write_text(text, encoding="utf-8")
+    print(f"Created {path.resolve()}")
+    print()
+    print("  In the ntfy app on your phone, tap + and subscribe to this topic:")
+    print()
+    print(f"      {topic}")
+    print()
+
+
 def load_config(path: str) -> dict:
     p = Path(path)
     if not p.exists():
-        sys.exit(f"Config {path} not found. Copy config.example.yaml to config.yaml and edit it.")
+        if not EXAMPLE.exists():
+            sys.exit(f"Config {path} not found and no config.example.yaml to create it from.")
+        create_config(p)
     with open(p, encoding="utf-8") as f:
-        return yaml.safe_load(f) or {}
+        cfg = yaml.safe_load(f) or {}
+    topic = ((cfg.get("notify") or {}).get("ntfy") or {}).get("topic")
+    if topic == PLACEHOLDER:
+        sys.exit(f"Set notify.ntfy.topic in {p.resolve()} (or delete the file to auto-generate one).")
+    return cfg
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -74,7 +98,8 @@ def main(argv: list[str] | None = None) -> None:
 
     if args.cmd == "test-notify":
         Notifier(cfg.get("notify") or {}).send_text("botvin test", "If you see this, alerts work 🎉")
-        print("sent")
+        topic = ((cfg.get("notify") or {}).get("ntfy") or {}).get("topic")
+        print(f"Test notification sent to ntfy topic: {topic}  (any ERROR above means it did not arrive)")
         return
 
     bot = Bot(cfg)

@@ -58,16 +58,20 @@ python -m botvin check "Arcteryx Beta AR jacket" --price 90 --brand "Arc'teryx" 
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp config.example.yaml config.yaml
+python -m botvin test-notify
 ```
 
-**Phone notifications (2 minutes):** install the **ntfy** app (iOS/Android),
-tap *Subscribe*, pick a long random topic name, and put the same name in
-`config.yaml` → `notify.ntfy.topic`. Each push shows the photo, the profit and
-an "Open on Vinted" button. Telegram also works (see the config comments).
+The first command you run creates `config.yaml` with a private, random ntfy
+topic and prints its name, like `botvin-3082f4256438`. Then:
+
+1. Install the **ntfy** app (iOS/Android), tap **+** and subscribe to the printed topic.
+2. Run `python -m botvin test-notify` again. Your phone should buzz.
+
+`config.yaml` is never uploaded to GitHub, so your topic stays private. Each
+push shows the photo, the profit and an "Open on Vinted" button. Telegram also
+works (see the comments in `config.yaml`).
 
 ```bash
-python -m botvin test-notify     # should buzz your phone
 python -m botvin once            # one sweep, alerts on whatever currently qualifies
 python -m botvin run             # run forever
 python -m botvin -v run          # ...and log why each branded item was skipped
