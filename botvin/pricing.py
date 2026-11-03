@@ -164,6 +164,7 @@ class Estimate:
     excluded: str | None = None   # reason, if the item should be skipped
     min_profit: float | None = None   # brand-specific stricter thresholds
     min_margin: float | None = None
+    max_buy: float | None = None      # brand-specific price ceiling (UGG: 20)
     instant: bool = False             # brand sells within minutes
     gender: str | None = None         # women / men, if known
     colour_family: str | None = None  # black, navy, burgundy...
@@ -404,6 +405,7 @@ class PriceModel:
         return Estimate(brand, category, round(resale, 2), round(baseline, 2), median, n,
                         min(confidence, 1.0), flags,
                         min_profit=info.get("min_profit"), min_margin=info.get("min_margin"),
+                        max_buy=info.get("max_buy"),
                         instant=bool(info.get("instant")) or any(
                             _contains(_word_prefix_pattern([m]), title_text)
                             for m in info.get("instant_models") or []),

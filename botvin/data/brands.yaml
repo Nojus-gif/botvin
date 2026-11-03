@@ -11,6 +11,7 @@
 #   season: winter|summer    overrides the category's season curve
 #   default_category: shoes  type to assume when the title names none
 #   skip_categories: [...]   never alert on these types for this brand
+#   max_buy: N               never alert above this total price (incl. fee)
 #   colours_for: [shoes]     the colours table only applies to these type groups
 #
 # `base` = what a used item in "very good" condition from this brand typically
@@ -249,7 +250,8 @@ brands:
     # genuinely cheap pairs go instantly -- no "instant" flag.
     overrides: {shoes: 38, boots: 42}
     season: winter         # UGGs are winter shoes whatever the title says
-    feed_price_to: 30
+    max_buy: 20            # only worth buying at 20 EUR or less (incl. Vinted fee)
+    feed_price_to: 20
     # Cheaper brands often tagged as UGG; if the title names one, it isn't UGG.
     other_brands: ["emu", "bearpaw", "inuikii", "mou", "shepherd", "australia luxe", "ugg style"]
   "Timberland":

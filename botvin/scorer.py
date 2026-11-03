@@ -134,6 +134,9 @@ def evaluate(item: Item, est: Estimate, t: Thresholds, demand: Demand | None = N
     else:
         if item.total_price > t.max_price:
             ok = False; reasons.append(f"price {item.total_price:.0f} > max {t.max_price:.0f}")
+        if est.max_buy and item.total_price > est.max_buy:
+            ok = False
+            reasons.append(f"{est.brand} only worth it at {est.max_buy:.0f}€ or less")
         if profit < min_profit:
             ok = False; reasons.append(f"profit {profit:.0f} < {min_profit:.0f}")
         if margin < min_margin:

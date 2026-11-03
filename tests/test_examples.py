@@ -481,7 +481,7 @@ def test_auto_feeds_for_instant_brands(tmp_path):
               store=Store(tmp_path / "f.db"), notifier=FakeNotifier(), model=PriceModel())
     texts = [f["search_text"] for f in bot.feeds]
     assert texts.count("Carhartt") == 1 and "carhartt" not in texts   # not duplicated
-    assert {"search_text": "ugg", "price_to": 30, "name": "auto-ugg"} in bot.feeds
+    assert {"search_text": "ugg", "price_to": 20, "name": "auto-ugg"} in bot.feeds
     off = Bot({"feeds": [], "auto_brand_feeds": False}, client=FakeClient([]),
               store=Store(tmp_path / "g.db"), notifier=FakeNotifier(), model=PriceModel())
     assert all(not f["name"].startswith("auto-") for f in off.feeds)
@@ -745,3 +745,11 @@ def test_ugg_tazz_hickory_with_defects():
     assert "damage mentioned" in est.flags and est.colour_family == "brown"
     assert 30 <= est.resale <= 45                       # worn Tazz: ~40 EUR, so 36.77 is no deal
     assert not evaluate(it, est, Thresholds()).is_deal
+
+
+def test_ugg_only_under_20_eur():
+    t = Thresholds()
+    for price, deal in ((15, True), (19.99, True), (20.5, False), (25, False)):
+        it = make("UGG Tazz chestnut", price, "UGG", size="39", status="Labai gera")
+        v = evaluate(it, model.estimate(it, when=NOV), t)
+        assert v.is_deal == deal, (price, v.reasons)
