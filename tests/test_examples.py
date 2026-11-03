@@ -648,3 +648,20 @@ def test_watchlist_detects_sale_when_page_errors_and_search_misses(tmp_path, mon
     bot.check_watchlist()
     row = bot.store.tracking(51)
     assert row["sold_at"] is not None and row["next_check"] is None
+
+
+def test_learning_summary_pushed_to_phone(tmp_path):
+    texts = []
+    notifier = FakeNotifier()
+    notifier.send_text = lambda title, body, quiet=False: texts.append((title, body, quiet))
+    bot = _watch_bot(tmp_path, FakeClient([]), notifier)
+    t0 = time.time()
+    assert not bot.maybe_send_summary(now=t0)             # first call only starts the clock
+    _fill_outcomes(bot.store, "Carhartt", "jacket", sold=5, unsold=0)
+    _fill_outcomes(bot.store, "Columbia", "fleece", sold=0, unsold=6)
+    assert not bot.maybe_send_summary(now=t0 + 3600)      # not 3 h yet
+    assert bot.maybe_send_summary(now=t0 + 3 * 3600 + 1)
+    title, body, quiet = texts[-1]
+    assert quiet and "5/11 new deals sold" in title
+    assert "✅ Carhartt jacket 5/5" in body and "❌ Columbia fleece 0/6" in body
+    assert not bot.maybe_send_summary(now=t0 + 7 * 3600)  # nothing new since -> no message

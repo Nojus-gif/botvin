@@ -82,6 +82,7 @@ feeds:
 review_after_hours: 2
 reviews_per_sweep: 1
 learn_from_outcomes: true
+learning_summary_hours: 3      # push "what I learned" to your phone every N hours (0 = off)
 
 # Brands marked feed_price_to in botvin/data/brands.yaml (UGG, Carhartt) get
 # their own search automatically. Set to false to turn that off.

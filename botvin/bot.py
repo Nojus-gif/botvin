@@ -54,6 +54,8 @@ class Bot:
         self.review_hours = float(cfg.get("review_after_hours", 2))
         self.reviews_per_sweep = int(cfg.get("reviews_per_sweep", 1))
         self.learn = bool(cfg.get("learn_from_outcomes", True))
+        # Push a "what I learned" summary every N hours (0 = never).
+        self.summary_hours = float(cfg.get("learning_summary_hours", 3))
 
     def _brand_feeds(self) -> list[dict]:
         """A dedicated search for each brand marked `feed_price_to` in
@@ -197,6 +199,30 @@ class Bot:
                      item.total_price, likes)
             done += 1
         return done
+
+    def maybe_send_summary(self, now: float | None = None, force: bool = False) -> bool:
+        """Every `learning_summary_hours`, push what the reviews taught us."""
+        if not self.summary_hours and not force:
+            return False
+        now = now or time.time()
+        last = float(self.store.get_meta("last_summary", "0") or 0)
+        if not last:                            # first run: start the clock, don't send yet
+            self.store.set_meta("last_summary", now)
+            if not force:
+                return False
+        if not force and now - last < self.summary_hours * 3600:
+            return False
+        msg = learning.phone_summary(self.store, self.review_hours, last)
+        if not msg:
+            return False
+        try:
+            self.notifier.send_text(*msg, quiet=True)
+        except Exception as e:                  # never let a report crash the bot
+            log.error("summary notification failed: %s", e)
+            return False
+        self.store.set_meta("last_summary", now)
+        log.info("sent learning summary: %s", msg[0])
+        return True
 
     # ------------------------------------------------------------ watchlist
     @staticmethod
@@ -342,6 +368,7 @@ class Bot:
                 self.review_outcomes()
             except VintedError as e:
                 log.error("outcome review failed: %s", e)
+            self.maybe_send_summary()
             first = False
             log.info("sweep took %.0fs (each search re-checked every ~%.0fs)",
                      time.time() - started, time.time() - started + interval)

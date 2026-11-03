@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS outcomes (
     price REAL, resale REAL, profit REAL, margin REAL, margin_band TEXT,
     demand_level TEXT, likes INTEGER, title TEXT, url TEXT
 );
+CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
 CREATE TABLE IF NOT EXISTS alerts (
     id INTEGER PRIMARY KEY,
     sent_at REAL NOT NULL,
@@ -234,6 +235,21 @@ class Store:
             f"SELECT SUM(status='sold'), COUNT(*) FROM outcomes WHERE {' AND '.join(clauses)}",
             args).fetchone()
         return int(row[0] or 0), int(row[1] or 0)
+
+    def outcomes_since(self, since: float) -> list[tuple]:
+        """[(status, title, price, brand, category, likes)] reviewed after `since`."""
+        return self.db.execute(
+            "SELECT status, title, price, brand, category, likes FROM outcomes"
+            " WHERE reviewed_at > ? AND status IN ('sold','unsold') ORDER BY reviewed_at",
+            (since,)).fetchall()
+
+    def get_meta(self, key: str, default: str | None = None) -> str | None:
+        row = self.db.execute("SELECT value FROM meta WHERE key=?", (key,)).fetchone()
+        return row[0] if row else default
+
+    def set_meta(self, key: str, value) -> None:
+        self.db.execute("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", (key, str(value)))
+        self.db.commit()
 
     def outcome_breakdown(self, column_expr: str) -> list[tuple]:
         """[(key, sold, total, avg sold_minutes)] grouped by a column expression

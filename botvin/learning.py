@@ -108,3 +108,41 @@ def report(store, window_hours: float) -> str:
     table("By demand level at alert time:", "demand_level")
     table("How sales were detected:", "COALESCE(sold_how, 'still listed')", min_n=1)
     return "\n".join(lines)
+
+
+def phone_summary(store, window_hours: float, since: float) -> tuple[str, str] | None:
+    """Short push-notification version of the report. None if nothing new."""
+    new = store.outcomes_since(since)
+    if not new:
+        return None
+    sold, total = store.outcome_counts({})
+    new_sold = sum(1 for r in new if r[0] == "sold")
+    title = (f"📊 Learned: {new_sold}/{len(new)} new deals sold within {window_hours:g} h · "
+             f"{sold}/{total} overall ({sold / total * 100:.0f}%)")
+
+    lines: list[str] = []
+    groups = [r for r in store.outcome_breakdown("brand || ' ' || category") if r[2] >= MIN_GROUP]
+    groups += [r for r in store.outcome_breakdown("gender || '''s ' || upper(size_letter)")
+               if r[0] and r[2] >= MIN_GROUP]
+    p0 = sold / total if total else 0.5
+    fast = sorted((g for g in groups if g[1] / g[2] >= max(0.7, p0 + 0.15)),
+                  key=lambda g: (-g[1] / g[2], -g[2]))[:4]
+    slow = sorted((g for g in groups if g[1] / g[2] <= min(0.35, p0 - 0.15)),
+                  key=lambda g: (g[1] / g[2], -g[2]))[:4]
+    if fast:
+        lines.append("Sells fast (boosted):")
+        lines += [f"  ✅ {k} {s}/{n}" + (f", ~{m:.0f} min" if m else "") for k, s, n, m in fast]
+    if slow:
+        lines.append("Doesn't sell (fewer alerts):")
+        lines += [f"  ❌ {k} {s}/{n}" for k, s, n, m in slow]
+    bands = {k: (s, n) for k, s, n, _ in store.outcome_breakdown("margin_band")}
+    if bands.get(">200%", (0, 0))[1] >= MIN_GROUP:
+        s, n = bands[">200%"]
+        lines.append(f"Bot's biggest-margin picks (>200%): {s}/{n} sold")
+    if total < MIN_TOTAL:
+        lines.append(f"Still collecting: learning starts at {MIN_TOTAL} reviewed items ({total} so far).")
+    lines.append("")
+    lines.append("Latest:")
+    for status, t, price, *_ in new[-6:]:
+        lines.append(f"  {'✅ sold' if status == 'sold' else '⏳ unsold'} · {price:.0f}€ · {t[:40]}")
+    return title, "\n".join(lines)

@@ -52,9 +52,12 @@ class Notifier:
         if self.telegram.get("token") and self.telegram.get("chat_id"):
             self._telegram(title, body, item)
 
-    def send_text(self, title: str, body: str) -> None:
+    def send_text(self, title: str, body: str, quiet: bool = False) -> None:
         if self.ntfy.get("topic"):
-            self._ntfy_post({"title": title, "message": body})
+            payload = {"title": title, "message": body}
+            if quiet:                           # reports: no loud buzz, unlike deals
+                payload.update({"priority": 2, "tags": ["bar_chart"]})
+            self._ntfy_post(payload)
         if self.telegram.get("token") and self.telegram.get("chat_id"):
             self._tg("sendMessage", {"chat_id": self.telegram["chat_id"], "text": f"{title}\n{body}"})
 
