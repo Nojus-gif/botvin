@@ -11,6 +11,7 @@ from pathlib import Path
 
 import yaml
 
+from . import colours
 from .audience import assess
 from .models import Item
 
@@ -72,6 +73,16 @@ CONDITION_MULT = {
     "satisfactory": 0.70,
     "unknown": 0.90,
 }
+
+MAX_BOOST = 1.6
+
+
+def _prod(xs) -> float:
+    out = 1.0
+    for x in xs:
+        out *= x
+    return out
+
 
 SIZE_MULT = {"s": 0.95, "m": 1.0, "l": 1.0, "xl": 1.0}
 
@@ -155,6 +166,7 @@ class Estimate:
     min_margin: float | None = None
     instant: bool = False             # brand sells within minutes
     gender: str | None = None         # women / men, if known
+    colour_family: str | None = None  # black, navy, burgundy...
     fast_seller: bool = False         # learned: this kind of item sells within the review window
     learned_factor: float = 1.0
 
@@ -285,6 +297,8 @@ class PriceModel:
 
         brand, brand_from_field = self.match_brand(item)
         category = self.detect_category(item.title) if item.title else "other"
+        if category == "other" and brand and self.brands[brand].get("default_category"):
+            category = self.brands[brand]["default_category"]      # "UGG Tazz" -> shoes
 
         mismatch = self.brand_mismatch(brand, text) if brand else None
         if mismatch:
@@ -305,8 +319,11 @@ class PriceModel:
         overrides = info.get("overrides") or {}
 
         premium_mult = 1.0
+        # Model names only count in the TITLE: descriptions often mention other
+        # models ("like a Detroit"), which made an Anchorage parka look like one.
+        title_text = normalize(item.title)
         for kw, rx in self._premium_res.items():
-            if _contains(rx, text):
+            if _contains(rx, title_text):
                 spec = self.premium[kw]
                 premium_mult = max(premium_mult, float(spec.get("mult", 1.0)))
                 if spec.get("category") and category in ("other", "jacket"):
@@ -329,7 +346,29 @@ class PriceModel:
         size = aud_mult if gender else SIZE_MULT.get(letter or "", 1.0) * aud_mult
         flags.extend(aud_flags)
 
-        mult = premium_mult * season * cond * size
+        # Colour vs. what sells for this brand/type. Page colour first, then
+        # the title (descriptions are too noisy). Pink/lilac is handled above
+        # as a women's item, so it isn't penalised twice.
+        fam = colours.family(item.colour) if item.colour else None
+        fam = fam or colours.family(item.title)
+        colour_mult = 1.0
+        if fam and not (fam in ("pink", "purple") and gender != "men"):
+            colour_mult = colours.demand(fam, category, info.get("colours"))
+            if colour_mult < 0.97 or colour_mult > 1.03:
+                popular = colours.popular(category, info.get("colours"))
+                note = f"colour {fam} x{colour_mult:.2f}"
+                if colour_mult < 1 and popular:
+                    note += f" (best sellers: {', '.join(popular)})"
+                flags.append(note)
+        size *= colour_mult
+
+        # Bonuses (model x season x colour x new-with-tags) multiply up fast; a
+        # black Nuptse in November came out at 2x base. Cap the combined boost.
+        factors = [premium_mult, season, cond, size]
+        boost = min(_prod(max(f, 1.0) for f in factors), MAX_BOOST)
+        mult = boost * _prod(min(f, 1.0) for f in factors)
+        if boost == MAX_BOOST:
+            flags.append(f"bonuses capped at x{MAX_BOOST}")
         if _contains(self.damage_re, text):
             mult *= 0.75
             flags.append("damage mentioned")
@@ -359,4 +398,7 @@ class PriceModel:
         return Estimate(brand, category, round(resale, 2), round(baseline, 2), median, n,
                         min(confidence, 1.0), flags,
                         min_profit=info.get("min_profit"), min_margin=info.get("min_margin"),
-                        instant=bool(info.get("instant")), gender=gender)
+                        instant=bool(info.get("instant")) or any(
+                            _contains(_word_prefix_pattern([m]), title_text)
+                            for m in info.get("instant_models") or []),
+                        gender=gender, colour_family=fam)

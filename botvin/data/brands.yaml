@@ -4,8 +4,12 @@
 #   min_profit / min_margin  raise the bar above the global thresholds (Adidas)
 #   instant: true            sells within minutes: always top priority, lower
 #                            margin accepted, no waiting for likes
+#   instant_models: [...]    same, but only when one of these is in the title
+#   colours: {family: mult}  which colours of this brand sell (black, navy,
+#                            brown, burgundy...); others use the type defaults
 #   feed_price_to: N         the bot adds its own search for this brand (<= N EUR)
 #   season: winter|summer    overrides the category's season curve
+#   default_category: shoes  type to assume when the title names none
 #
 # `base` = what a used item in "very good" condition from this brand typically
 # RESELLS for on Vinted (EUR) when it is a regular jacket, at neutral season.
@@ -65,6 +69,7 @@ category_season:
 brands:
   "Arc'teryx":
     aliases: ["arcteryx", "arc'teryx", "arc teryx", "arcterix"]
+    colours: {black: 1.15, grey: 1.05, olive: 1.05, green: 1.0, navy: 1.0, beige: 1.0, blue: 0.95, red: 0.85, orange: 0.85, yellow: 0.85, burgundy: 0.85}
     base: 180
     overrides: {fleece: 110, tshirt: 45, hoodie: 90, pants: 90}
   "Dolce & Gabbana":
@@ -75,6 +80,7 @@ brands:
                 jeans: 65, bag: 150, accessory: 60}
   "Maison Margiela":
     aliases: ["maison margiela", "margiela", "maison martin margiela", "mm6", "mm6 maison margiela"]
+    colours: {white: 1.1, black: 1.1, grey: 1.0, beige: 1.0, brown: 1.0, red: 0.9, blue: 0.9}
     base: 200
     overrides: {shoes: 160, boots: 280, tshirt: 60, sweater: 130, hoodie: 110, pants: 90,
                 jeans: 90, bag: 180, accessory: 70}
@@ -82,15 +88,18 @@ brands:
     not_fake_words: ["replica"]
   "Moncler":
     aliases: ["moncler"]
+    colours: {black: 1.15, navy: 1.05, grey: 1.0, beige: 1.0, white: 0.95, blue: 0.95, red: 0.8, burgundy: 0.85, yellow: 0.8}
     other_brands: ["moncler style"]
     base: 350
     overrides: {tshirt: 70, hoodie: 130}
   "Canada Goose":
     aliases: ["canada goose"]
+    colours: {black: 1.15, navy: 1.05, olive: 1.05, grey: 1.0, beige: 0.95, red: 0.85, burgundy: 0.85, blue: 0.9}
     other_brands: ["canada weather gear", "canadian peak"]
     base: 380
   "Stone Island":
     aliases: ["stone island", "stoneisland"]
+    colours: {black: 1.1, navy: 1.05, olive: 1.05, grey: 1.0, white: 1.0, beige: 1.0, blue: 0.95, red: 0.8, burgundy: 0.85, yellow: 0.85, orange: 0.9}
     base: 180
     overrides: {sweater: 110, hoodie: 110, tshirt: 60, pants: 90}
   "C.P. Company":
@@ -117,10 +126,12 @@ brands:
     base: 120
   "The North Face":
     aliases: ["the north face", "north face", "tnf"]
+    colours: {black: 1.15, brown: 1.05, olive: 1.05, beige: 1.0, navy: 1.0, grey: 0.95, yellow: 0.95, red: 0.85, burgundy: 0.85, blue: 0.9}
     base: 75
     overrides: {puffer: 115, fleece: 45, tshirt: 20}
   "Patagonia":
     aliases: ["patagonia"]
+    colours: {beige: 1.1, olive: 1.05, green: 1.05, black: 1.0, navy: 1.0, brown: 1.05, grey: 1.0, blue: 0.95, red: 0.85, burgundy: 0.85}
     base: 85
     overrides: {fleece: 65}
   "Rab":
@@ -128,6 +139,7 @@ brands:
     base: 90
   "Barbour":
     aliases: ["barbour"]
+    colours: {olive: 1.1, navy: 1.05, brown: 1.05, black: 1.0, beige: 1.0, blue: 0.9, red: 0.8, burgundy: 0.85}
     base: 90
   "Mammut":
     aliases: ["mammut"]
@@ -150,13 +162,17 @@ brands:
     base: 60
   "Salomon":
     aliases: ["salomon"]
+    colours: {black: 1.1, grey: 1.05, beige: 1.05, olive: 1.05, brown: 1.05, white: 1.0, blue: 0.95, green: 1.0, red: 0.9, yellow: 0.9, orange: 0.95}
     base: 60
     overrides: {shoes: 75, boots: 80}
   "Carhartt":
     aliases: ["carhartt", "carhartt wip"]
+    colours: {brown: 1.15, black: 1.1, olive: 1.05, beige: 1.0, navy: 1.0, grey: 0.95, blue: 0.85,
+              green: 0.85, red: 0.7, burgundy: 0.65, yellow: 0.8, orange: 0.85}
     base: 75
     overrides: {coat: 85, pants: 45, hoodie: 40, tshirt: 20}
-    instant: true          # Detroit / Michigan jackets sell within a minute
+    # Only these models sell within a minute; other Carhartt is ordinary.
+    instant_models: ["detroit", "michigan", "active jacket", "og active", "santa fe"]
     feed_price_to: 70      # gets its own search, capped at this price
   "Napapijri":
     aliases: ["napapijri"]
@@ -166,6 +182,7 @@ brands:
     base: 50
   "Columbia":
     aliases: ["columbia"]
+    colours: {black: 1.1, navy: 1.0, olive: 1.05, grey: 1.0, brown: 1.0, beige: 1.0, orange: 1.0, blue: 0.95, red: 0.85, burgundy: 0.8, yellow: 0.9}
     base: 40
   "Helly Hansen":
     aliases: ["helly hansen"]
@@ -175,6 +192,7 @@ brands:
     base: 45
   "Ralph Lauren":
     aliases: ["ralph lauren", "polo ralph lauren", "polo by ralph lauren"]
+    colours: {navy: 1.1, white: 1.05, green: 1.05, black: 1.0, beige: 1.0, grey: 1.0, red: 1.0, burgundy: 0.95, yellow: 0.9}
     base: 60
     overrides: {sweater: 40, shirt: 30, tshirt: 20}
   "Lacoste":
@@ -183,18 +201,22 @@ brands:
     overrides: {tshirt: 25, sweater: 35}
   "Stüssy":
     aliases: ["stussy", "stüssy"]
+    colours: {black: 1.1, grey: 1.05, white: 1.05, beige: 1.0, navy: 1.0, brown: 1.0, olive: 1.0, green: 0.95, blue: 0.95, red: 0.9, burgundy: 0.9}
     base: 60
     overrides: {tshirt: 30, hoodie: 50}
   "Dr. Martens":
     aliases: ["dr. martens", "dr martens", "docs martens"]
+    colours: {black: 1.15, burgundy: 0.95, brown: 0.95, white: 0.85, red: 0.85, blue: 0.75, green: 0.8, pink: 0.8, yellow: 0.75}
     base: 60
     overrides: {boots: 60, shoes: 55}
   "New Balance":
     aliases: ["new balance"]
+    colours: {grey: 1.15, beige: 1.1, white: 1.05, black: 1.0, navy: 1.0, brown: 1.05, green: 0.95, red: 0.85, blue: 0.9, burgundy: 0.9}
     base: 35
     overrides: {shoes: 55}
   "Nike":
     aliases: ["nike"]
+    colours: {white: 1.1, black: 1.1, grey: 1.05, beige: 1.0, brown: 1.0, navy: 0.95, red: 0.9, burgundy: 0.9, green: 0.9, blue: 0.9, yellow: 0.85, orange: 0.85}
     base: 35
     overrides: {shoes: 55, tshirt: 15}
   "Jordan":
@@ -210,6 +232,8 @@ brands:
     min_margin: 1.5
   "UGG":
     aliases: ["ugg", "uggs"]
+    default_category: shoes   # "UGG Tazz" with no shoe word is still shoes
+    colours: {brown: 1.15, beige: 1.1, black: 1.05, grey: 0.9, pink: 0.9, white: 0.85, blue: 0.8, red: 0.8, burgundy: 0.85}
     base: 50
     overrides: {shoes: 70, boots: 75}
     season: winter         # UGGs are winter shoes whatever the title says
@@ -355,7 +379,7 @@ premium_keywords:
   "titanium": {mult: 1.2}
   "bedale": {mult: 1.2, category: coat}
   "beaufort": {mult: 1.2, category: coat}
-  "detroit": {mult: 1.6, category: jacket}
+  "detroit": {mult: 1.4, category: jacket}
   "michigan": {mult: 1.4, category: jacket}
   "active jacket": {mult: 1.3, category: jacket}
   "tazz": {mult: 1.3}

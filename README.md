@@ -31,6 +31,16 @@ For every new listing:
    - **Model names**: `gore-tex`, `nuptse`, `summit series`, `beta ar`, `nano puff`…
    - **Damage words** (`uszkodzony`, `skylė`, `rikki`, `kaputt`…): ×0.75. The
      item still gets alerted, with a ⚠ flag, because a damaged TNF can still flip.
+   - **Colour vs. what sells**: the colour (from the item page, else the
+     title) is compared with the best-selling colours for that brand, or for
+     the item type when the brand has no table. Black/navy/brown/olive
+     outerwear sells; burgundy, red or yellow is discounted (Carhartt burgundy
+     ×0.65). The 2 h reviews also learn colour per brand ("burgundy Carhartt
+     jacket 0/4 sold").
+   - **Model names count only in the title**, never the description ("like a
+     Detroit" in a description doesn't make an Anchorage parka a Detroit).
+   - **Bonuses are capped**: model × season × colour × condition together can
+     raise the value at most ×1.6.
    - **Fake words** (`replica`, `1:1`, `podróbka`…): skipped.
    - **Kids' items and extreme sizes: skipped.** Searches only cover Vinted's
      Men + Women sections. Anything else is dropped if it has a kids' size

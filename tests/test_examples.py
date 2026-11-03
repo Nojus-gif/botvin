@@ -591,14 +591,14 @@ def test_review_marks_sold_unsold_and_gone(tmp_path, monkeypatch):
     assert bot.review_outcomes() == 0                             # each item reviewed once
 
 
-def _fill_outcomes(store, brand, category, sold, unsold, gender=None, size="l"):
+def _fill_outcomes(store, brand, category, sold, unsold, gender=None, size="l", colour=None):
     import itertools
     ids = itertools.count(store.db.execute("SELECT COALESCE(MAX(id),0) FROM outcomes").fetchone()[0] + 1)
     for status, n in (("sold", sold), ("unsold", unsold)):
         for _ in range(n):
             store.record_outcome(next(ids), status=status, sold_how=None, sold_minutes=20,
                                  alerted=1, brand=brand, category=category, gender=gender,
-                                 size_letter=size, colour=None, price=20, resale=60, profit=36,
+                                 size_letter=size, colour=colour, price=20, resale=60, profit=36,
                                  margin=1.5, margin_band="100-200%", demand_level="normal",
                                  likes=5, title="x", url="u")
 
@@ -665,3 +665,57 @@ def test_learning_summary_pushed_to_phone(tmp_path):
     assert quiet and "5/11 new deals sold" in title
     assert "✅ Carhartt jacket 5/5" in body and "❌ Columbia fleece 0/6" in body
     assert not bot.maybe_send_summary(now=t0 + 7 * 3600)  # nothing new since -> no message
+
+
+def test_carhartt_anchorage_burgundy_is_not_a_detroit():
+    it = make("Kurtka zimowa Carhartt WIP Anchorage Parka M bordowa skate workwear y2k", 58.41,
+              "Carhartt", size="M", status="Labai gera",
+              desc="Legendinė striukė, panaši į Detroit")
+    est = model.estimate(it, when=NOV)
+    assert not any("detroit" in f for f in est.flags)          # description mention ignored
+    assert not est.instant and est.colour_family == "burgundy"
+    assert est.resale < 80 and not evaluate(it, est, Thresholds()).is_deal
+    det = make("Carhartt WIP Detroit Jacket", 51.19, "Carhartt", size="M", status="Labai gera")
+    est = model.estimate(det, when=NOV)
+    assert est.instant and 100 <= est.resale <= 140
+
+
+@pytest.mark.parametrize("text,fam", [
+    ("Bordo", "burgundy"), ("kurtka bordowa", "burgundy"), ("Mėlyna, Juoda", "blue"),
+    ("Tamsiai mėlyna striukė", "navy"), ("Carhartt Detroit Hamilton Brown", "brown"),
+    ("Bluza Oakley", None), ("Rudeninė striukė", None), ("Must have jacket", None),
+    ("Nike tank top", None), ("Kurtka bez kaptura czarna", "black"), ("Patagonia olive", "olive"),
+])
+def test_colour_families(text, fam):
+    from botvin.colours import family
+    assert family(text) == fam
+
+
+def test_colour_changes_value_for_any_popular_brand():
+    def r(title, brand, size="L", colour=""):
+        it = make(title, 20, brand, size=size)
+        it.colour = colour
+        return model.estimate(it, when=NOV).resale
+    assert r("Nuptse kurtka", "The North Face", colour="Juoda") > r("Nuptse kurtka", "The North Face", colour="Raudona")
+    assert r("UGG batai", "UGG", "39", "Ruda") > r("UGG batai", "UGG", "39", "Mėlyna")
+    assert r("Dr. Martens 1460 batai", "Dr. Martens", "43", "Juoda") > r("Dr. Martens 1460 batai", "Dr. Martens", "43", "Mėlyna")
+    # brands without a colour table use the defaults for the item type
+    assert r("Mammut kurtka", "Mammut", colour="Black") > r("Mammut kurtka", "Mammut", colour="Bordo")
+
+
+def test_bonuses_are_capped():
+    it = make("The North Face Nuptse black", 60, "The North Face", size="L", status="Naujas su etiketėmis")
+    est = model.estimate(it, when=NOV)
+    assert "bonuses capped at x1.6" in est.flags and est.resale <= 115 * 1.6 + 0.01
+
+
+def test_learning_by_brand_and_colour(tmp_path):
+    from botvin import learning
+    store = Store(tmp_path / "c.db")
+    _fill_outcomes(store, "Carhartt", "jacket", sold=6, unsold=1, colour="black")
+    _fill_outcomes(store, "Carhartt", "jacket", sold=0, unsold=4, colour="burgundy")
+    got = learning.adjust(store, "Carhartt", "jacket", None, "m", 2, colour="burgundy")
+    assert "burgundy Carhartt jacket 0/4" in got.note and got.factor < 0.9
+    got = learning.adjust(store, "Carhartt", "jacket", None, "m", 2, colour="black")
+    assert "black Carhartt jacket 6/7" in got.note and got.factor > 1.05
+    assert "burgundy Carhartt" in learning.report(store, 2)

@@ -141,7 +141,7 @@ class Bot:
         if not self.learn or est.excluded or not est.brand:
             return est
         got = learning.adjust(self.store, est.brand, est.category, est.gender,
-                              letter_size(item.size), self.review_hours)
+                              letter_size(item.size), self.review_hours, est.colour_family)
         if got.total:
             est.resale = round(est.resale * got.factor, 2)
             est.learned_factor = got.factor
@@ -190,7 +190,7 @@ class Bot:
                 item.id, status=status, sold_how=how, sold_minutes=sold_minutes,
                 alerted=int(self.store.was_alerted(item.id)), brand=row["brand"],
                 category=row["category"], gender=est.gender, size_letter=letter_size(item.size),
-                colour=row.get("colour"), price=item.total_price, resale=est.resale,
+                colour=est.colour_family, price=item.total_price, resale=est.resale,
                 profit=round(profit, 2), margin=round(margin, 3),
                 margin_band=learning.margin_band(margin), demand_level=level, likes=likes,
                 title=item.title, url=item.url)

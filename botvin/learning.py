@@ -47,11 +47,23 @@ def margin_band(margin: float) -> str:
     return ">200%"
 
 
-def groups_for(brand: str | None, category: str, gender: str | None, size: str | None) -> list[tuple[str, dict, str]]:
+# Outcomes needed before each kind of group counts. Brand-level groups can be
+# trusted sooner than broad ones ("all puffers"), which mix very different items.
+MIN_BY_KIND = {"brand+type+colour": 3, "brand+colour": 3, "brand+type": 3, "brand": 4,
+               "type": 6, "gender+size": 6}
+
+
+def groups_for(brand: str | None, category: str, gender: str | None, size: str | None,
+               colour: str | None = None) -> list[tuple[str, dict, str]]:
     """Most specific first: (label, filter on outcome columns, kind)."""
     out = []
     if brand:
+        if colour:
+            out.append((f"{colour} {brand} {category}",
+                        {"brand": brand, "category": category, "colour": colour}, "brand+type+colour"))
         out.append((f"{brand} {category}", {"brand": brand, "category": category}, "brand+type"))
+        if colour:
+            out.append((f"{colour} {brand}", {"brand": brand, "colour": colour}, "brand+colour"))
         out.append((brand, {"brand": brand}, "brand"))
     out.append((category, {"category": category}, "type"))
     if gender and size:
@@ -60,15 +72,15 @@ def groups_for(brand: str | None, category: str, gender: str | None, size: str |
 
 
 def adjust(store, brand: str | None, category: str, gender: str | None,
-           size_letter: str | None, window_hours: float) -> Learned:
+           size_letter: str | None, window_hours: float, colour: str | None = None) -> Learned:
     overall_sold, overall_total = store.outcome_counts({})
     if overall_total < MIN_TOTAL:
         return Learned()
     p0 = overall_sold / overall_total
     p0 = min(max(p0, 0.05), 0.95)
-    for label, where, _kind in groups_for(brand, category, gender, size_letter):
+    for label, where, kind in groups_for(brand, category, gender, size_letter, colour):
         sold, total = store.outcome_counts(where)
-        if total < MIN_GROUP:
+        if total < MIN_BY_KIND.get(kind, MIN_GROUP):
             continue
         rate = (sold + PRIOR_STRENGTH * p0) / (total + PRIOR_STRENGTH)
         factor = min(max((rate / p0) ** 0.5, FACTOR_RANGE[0]), FACTOR_RANGE[1])
@@ -104,6 +116,7 @@ def report(store, window_hours: float) -> str:
     table("By brand:", "brand")
     table("By type:", "category")
     table("By gender + size:", "gender || '''s ' || upper(size_letter)")
+    table("By brand + colour:", "colour || ' ' || brand")
     table("By the bot's estimated margin (is it right about big margins?):", "margin_band")
     table("By demand level at alert time:", "demand_level")
     table("How sales were detected:", "COALESCE(sold_how, 'still listed')", min_n=1)
@@ -123,6 +136,8 @@ def phone_summary(store, window_hours: float, since: float) -> tuple[str, str] |
     lines: list[str] = []
     groups = [r for r in store.outcome_breakdown("brand || ' ' || category") if r[2] >= MIN_GROUP]
     groups += [r for r in store.outcome_breakdown("gender || '''s ' || upper(size_letter)")
+               if r[0] and r[2] >= MIN_GROUP]
+    groups += [r for r in store.outcome_breakdown("colour || ' ' || brand")
                if r[0] and r[2] >= MIN_GROUP]
     p0 = sold / total if total else 0.5
     fast = sorted((g for g in groups if g[1] / g[2] >= max(0.7, p0 + 0.15)),
