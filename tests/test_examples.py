@@ -212,3 +212,12 @@ def test_title_brand_stuffing_ignored_when_brand_field_set():
     assert model.match_brand(it)[0] is None
     # ...but an empty brand field still falls back to the title
     assert model.match_brand(make("Kurtka Columbia", 15, ""))[0] == "Columbia"
+
+
+def test_latvian_estonian_categories():
+    assert model.detect_category("The North Face silta flīsa jaka ar kapuci") == "fleece"
+    assert model.detect_category("Columbia talvejope") == "puffer"
+    assert model.detect_category("Patagonia jope") == "jacket"
+    it = make("The North Face silta flīsa jaka ar kapuci", 20, "The North Face",
+              desc="Youth/Junior XL izmērs.")
+    assert "kids item?" in model.estimate(it, when=NOV).flags

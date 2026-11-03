@@ -278,6 +278,8 @@ kids_keywords:
   - enfant      # FR
   - niño        # ES
   - bambin      # IT
+  - bērnu       # LV
+  - laste       # ET
 
 # Model names that signal the high end of a brand. Each one multiplies the
 # resale estimate (and can force a category).
