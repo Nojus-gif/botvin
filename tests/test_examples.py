@@ -122,3 +122,20 @@ def test_bot_alerts_only_on_new_items_after_first_sweep(tmp_path, monkeypatch):
     bot.poll_feed({"name": "t"})           # new item appears
     bot.poll_feed({"name": "t"})           # nothing new
     assert notifier.sent == [2]
+
+
+def test_new_api_params_use_attribute_ids_and_drop_blanks():
+    from botvin.vinted import build_params
+    p = build_params("", brand_ids=[53, 88], status_ids=[2, 3], price_to=60)
+    assert p["attribute_ids[brand]"] == "53,88"
+    assert p["attribute_ids[status]"] == "2,3"
+    assert "search_text" not in p and "price_from" not in p and "brand_ids" not in p
+    assert p["price_to"] == 60 and p["order"] == "newest_first"
+
+
+def test_item_box_fallback():
+    it = Item.from_api({"id": 5, "title": "Kurtka", "price": {"amount": "10", "currency_code": "EUR"},
+                        "url": "/items/5-kurtka",
+                        "item_box": {"first_line": "Columbia", "second_line": "L · Gera"}})
+    assert (it.brand, it.size, it.condition) == ("Columbia", "L", "good")
+    assert it.url == "https://www.vinted.lt/items/5-kurtka" and it.uploaded_at is None

@@ -94,6 +94,19 @@ class Item:
         photo_url = photo.get("full_size_url") or photo.get("url")
         uploaded = (photo.get("high_resolution") or {}).get("timestamp")
 
+        # Newer responses may omit brand_title/size_title and only carry
+        # item_box: branded -> first_line = brand, second_line = "size · condition".
+        box = d.get("item_box") or {}
+        brand = d.get("brand_title") or ""
+        size = d.get("size_title") or ""
+        second = [p.strip() for p in str(box.get("second_line") or "").split("·") if p.strip()]
+        if not brand and box.get("first_line") and box.get("first_line") != d.get("title"):
+            brand = box["first_line"]
+        if not size and len(second) >= 2:
+            size = second[0]
+        if condition == "unknown" and second:
+            condition = CONDITION_BY_LABEL.get(second[-1].lower(), "unknown")
+
         url = d.get("url") or f"/items/{d['id']}"
         if url.startswith("/"):
             url = base_url.rstrip("/") + url
@@ -104,8 +117,8 @@ class Item:
             price=price,
             total_price=total,
             currency=currency,
-            brand=d.get("brand_title") or "",
-            size=d.get("size_title") or "",
+            brand=brand,
+            size=size,
             condition=condition,
             url=url,
             photo_url=photo_url,

@@ -60,6 +60,7 @@ def main(argv: list[str] | None = None) -> None:
     sub.add_parser("run")
     sub.add_parser("once")
     sub.add_parser("test-notify")
+    sub.add_parser("probe", help="check that the bot can reach Vinted's search")
     chk = sub.add_parser("check", help="score a hypothetical listing offline")
     chk.add_argument("title")
     chk.add_argument("--price", type=float, required=True, help="total price incl. Vinted fee")
@@ -95,6 +96,13 @@ def main(argv: list[str] | None = None) -> None:
     cfg = load_config(args.config)
     from .bot import Bot  # imported late so `check` works without network deps
     from .notify import Notifier
+
+    if args.cmd == "probe":
+        from .vinted import VintedClient
+        client = VintedClient(domain=cfg.get("domain", "vinted.lt"))
+        for line in client.probe():
+            print(line)
+        return
 
     if args.cmd == "test-notify":
         Notifier(cfg.get("notify") or {}).send_text("botvin test", "If you see this, alerts work 🎉")

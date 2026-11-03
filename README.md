@@ -97,8 +97,12 @@ to be blocked than a datacenter IP.
 ## Caveats
 
 - Vinted has no public API. This uses the same JSON endpoints the website uses,
-  with an anonymous session cookie. If Vinted changes them, `vinted.py` needs
-  updating. Automated access is against Vinted's terms, so keep request rates
+  with an anonymous session token. Since September 2026 search is at
+  `api.vinted.<tld>/svc-catalogue/items`. If Vinted changes it again, run
+  `python -m botvin probe` and update `vinted.py`.
+- The new API no longer says when an item was listed, so "fresh" means "new
+  since the bot started watching". The first sweep after starting only records
+  what's already up. Automated access is against Vinted's terms, so keep request rates
   modest and use the bot at your own risk.
 - If you get HTTP 403s, make sure `curl_cffi` is installed (it mimics a real
   Chrome browser), slow down, or run from a residential IP.
