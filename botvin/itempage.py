@@ -32,45 +32,61 @@ UNITS = [
      r"viikko(?:a)?|veckor?", 604800),
     # months
     (r"mėn(?:es[iį]ų?|\.)?|months?|miesi[aą]c[ey]?|monate?n?|mois|mes[ei]s?|kuukau(?:si|tta)", 2592000),
+    # years ("m." in LT is metai)
+    (r"m\.?|met(?:ai|us|ų)|years?|lat[a]?|rok|jahren?|ans?|años?|ann[oi]|vuo(?:si|tta)|år", 31536000),
 ]
 UNIT_RES = [(re.compile(rf"^(?:{p})$", re.I), secs) for p, secs in UNITS]
 
-# Phrases that mark the relative upload time, around "N unit".
+# The number is optional: Vinted writes "Įkelta prieš val." (an hour ago),
+# "prieš min.", "Uploaded a day ago". "a/an/one" or no number means 1.
+_N = r"(\d+|an?|one|jeden|jedna|ein(?:e|em|er)?|un[ea]?|yksi)?\s*"
+_U = r"([^\W\d_][^\s<,]*?\.?)"
+# Only phrases anchored on the "uploaded" label. A bare "26 minutes ago"
+# elsewhere on the page (the seller's other items, reviews) is ignored.
 REL_PATTERNS = [
-    re.compile(r"(?:įkelta|ikelta)\s+prieš\s+(\d+)\s+([^\s<.,]+\.?)", re.I),           # LT
-    re.compile(r"(?:uploaded|added|posted)\s+(\d+)\s+([a-z]+)\s+ago", re.I),            # EN
-    re.compile(r"(?:dodan[eoy]|dodano)\s+(\d+)\s+([^\s<.,]+)\s+temu", re.I),            # PL
-    re.compile(r"(\d+)\s+([^\s<.,]+)\s+temu", re.I),                                    # PL short
-    re.compile(r"(?:hochgeladen|eingestellt)\s+vor\s+(\d+)\s+([^\s<.,]+)", re.I),       # DE
-    re.compile(r"(?:ajouté|publié)\s+il\s+y\s+a\s+(\d+)\s+([^\s<.,]+)", re.I),          # FR
-    re.compile(r"(?:subido|publicado)\s+hace\s+(\d+)\s+([^\s<.,]+)", re.I),             # ES
-    re.compile(r"(?:caricato|pubblicato)\s+(\d+)\s+([^\s<.,]+)\s+fa", re.I),            # IT
-    re.compile(r"(?:lisätty|ladattu)\s+(\d+)\s+([^\s<.,]+)\s+sitten", re.I),            # FI
-    re.compile(r"(\d+)\s+([^\s<.,]+)\s+(?:sitten|ago)", re.I),
+    re.compile(rf"(?:įkelta|ikelta)\s+prieš\s+{_N}{_U}(?=[\s.,<]|$)", re.I),            # LT
+    re.compile(rf"(?:uploaded|added|posted|listed)\s+{_N}{_U}\s+ago", re.I),            # EN
+    re.compile(rf"(?:dodan[eoy]|dodano)\s+{_N}{_U}\s+temu", re.I),                      # PL
+    re.compile(rf"(?:hochgeladen|eingestellt)\s+vor\s+{_N}{_U}(?=[\s.,<]|$)", re.I),    # DE
+    re.compile(rf"(?:ajouté|publié)\s+il\s+y\s+a\s+{_N}{_U}(?=[\s.,<]|$)", re.I),     # FR
+    re.compile(rf"(?:subido|publicado)\s+hace\s+{_N}{_U}(?=[\s.,<]|$)", re.I),          # ES
+    re.compile(rf"(?:caricato|pubblicato)\s+{_N}{_U}\s+fa", re.I),                       # IT
+    re.compile(rf"(?:lisätty|ladattu)\s+{_N}{_U}\s+sitten", re.I),                       # FI
+    re.compile(rf"(?:augšupielādēts|pievienots)\s+(?:pirms\s+)?{_N}{_U}(?=[\s.,<]|$)", re.I),  # LV
 ]
+JUST_NOW = re.compile(r"(?:įkelta|ikelta)\s+(?:dabar|ką\s+tik)|(?:uploaded|added|listed)\s+just\s+now|"
+                      r"dodan[eoy]\s+przed\s+chwilą|(?:hochgeladen|eingestellt)\s+gerade|"
+                      r"ajouté\s+à\s+l'instant|lisätty\s+juuri", re.I)
 
 
 def _unit_seconds(word: str) -> int | None:
-    w = word.strip().rstrip(".").lower()
-    for rx, secs in UNIT_RES:
-        if rx.match(w) or rx.match(w + "."):
-            return secs
+    w = word.strip().lower()
+    for cand in (w, w.rstrip(".")):
+        for rx, secs in UNIT_RES:
+            if rx.match(cand):
+                return secs
     return None
 
 
 def parse_relative(text: str, now: float | None = None) -> float | None:
-    """'Įkelta prieš 19 val.' -> unix timestamp 19 hours ago."""
+    """'Įkelta prieš 19 val.' -> unix timestamp 19 hours ago. If several
+    'uploaded ...' phrases appear, the first one on the page (this item's own
+    details, above the seller's other listings) wins."""
     now = now or time.time()
+    best: tuple[int, float] | None = None
+    m = JUST_NOW.search(text)
+    if m:
+        best = (m.start(), now)
     for rx in REL_PATTERNS:
         for m in rx.finditer(text):
+            if best and m.start() >= best[0]:
+                break
             secs = _unit_seconds(m.group(2))
             if secs:
-                return now - int(m.group(1)) * secs
-    low = text.lower()
-    for phrase in ("ką tik", "just now", "przed chwilą", "gerade eben", "à l'instant", "juuri nyt"):
-        if phrase in low:
-            return now
-    return None
+                n = m.group(1)
+                best = (m.start(), now - (int(n) if n and n.isdigit() else 1) * secs)
+                break
+    return best[1] if best else None
 
 
 def _visible_text(page: str) -> str:

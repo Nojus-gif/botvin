@@ -541,3 +541,17 @@ def test_watchlist_gets_likes_from_search_when_page_has_none(tmp_path, monkeypat
     bot.check_watchlist()
     assert bot.store.tracking(31)["fav_last"] == 8
     assert notifier.sent == [(31, True)]                  # 8 likes in 12 min = 40/h: hot
+
+
+@pytest.mark.parametrize("text,minutes", [
+    ("Įkelta prieš val.", 60), ("Įkelta prieš min.", 1), ("Įkelta dabar", 0),
+    ("Įkelta prieš 1 d.", 1440), ("Uploaded a day ago", 1440), ("Uploaded an hour ago", 60),
+    ("Seller's other items: 26 minutes ago · Uploaded a day ago", 1440),
+    ("Uploaded a day ago · Member items: Įkelta dabar", 1440),
+    ("Reviews: 26 minutes ago", None),
+])
+def test_upload_time_phrases(text, minutes):
+    from botvin.itempage import parse_relative
+    now = 1_800_000_000.0
+    r = parse_relative(text, now)
+    assert (None if r is None else round((now - r) / 60)) == minutes
