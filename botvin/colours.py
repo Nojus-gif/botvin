@@ -42,7 +42,7 @@ FAMILIES: dict[str, list[str]] = {
 # Demand multiplier by colour family for each kind of item. 1.0 = typical.
 TYPE_GROUPS = {
     "outerwear": {"puffer", "jacket", "shell", "coat", "fleece", "vest"},
-    "tops": {"hoodie", "sweater", "tshirt", "shirt"},
+    "tops": {"hoodie", "sweater", "tshirt", "shirt", "tracksuit"},
     "shoes": {"shoes", "boots"},
     "bottoms": {"pants", "jeans", "shorts"},
 }

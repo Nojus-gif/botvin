@@ -32,6 +32,7 @@ category_factors:
   vest: 0.60
   sweater: 0.50
   hoodie: 0.50
+  tracksuit: 0.75   # hoodie + pants set
   shirt: 0.35
   tshirt: 0.25
   pants: 0.45
@@ -58,6 +59,7 @@ category_season:
   vest: winter
   sweater: winter
   hoodie: neutral
+  tracksuit: neutral
   boots: winter
   tshirt: summer
   shorts: summer

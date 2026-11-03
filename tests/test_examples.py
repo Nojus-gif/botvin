@@ -753,3 +753,14 @@ def test_ugg_only_under_20_eur():
         it = make("UGG Tazz chestnut", price, "UGG", size="39", status="Labai gera")
         v = evaluate(it, model.estimate(it, when=NOV), t)
         assert v.is_deal == deal, (price, v.reasons)
+
+
+def test_tracksuit_set():
+    assert model.detect_category("Ralph Lauren sportinis kostiumas") == "tracksuit"
+    assert model.detect_category("Komplet dresowy Nike") == "tracksuit"
+    assert model.detect_category("Zara dress black") != "tracksuit"      # "dress" is not "dres"
+    it = make("Ralph Lauren sportinis kostiumas", 19.60, "Ralph Lauren", size="L", status="Gera",
+              desc="Tamsiai mėlynas sportinis kostiumas.")
+    it.colour = "Tamsiai mėlyna"
+    est = model.estimate(it, when=NOV)
+    assert 40 <= est.resale <= 55 and evaluate(it, est, Thresholds()).is_deal
