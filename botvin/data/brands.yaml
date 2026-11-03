@@ -263,7 +263,7 @@ fake_keywords:
   - "aaa+"
   - nachgemacht
 
-# Words that suggest a kids' item (much lower resale for these brands).
+# Words that suggest a kids' item. Skipped entirely unless filters.exclude_kids: false.
 kids_keywords:
   - kids
   - junior
@@ -280,6 +280,24 @@ kids_keywords:
   - bambin      # IT
   - bērnu       # LV
   - laste       # ET
+  - youth
+  - toddler
+  - infant
+  - "kid's"
+  - teen
+  - berniuk     # LT boy's
+  - mergait     # LT girl's
+  - kūdik       # LT baby
+  - dziecka     # PL dla dziecka
+  - dzieci      # PL
+  - chłopc      # PL dla chłopca
+  - niemowl     # PL baby
+  - jugend      # DE
+  - mädchen     # DE
+  - jungen      # DE
+  - garçon      # FR
+  - fille       # FR
+  - bébé        # FR
 
 # Model names that signal the high end of a brand. Each one multiplies the
 # resale estimate (and can force a category).

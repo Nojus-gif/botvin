@@ -23,6 +23,14 @@ thresholds:
   hot_margin_relief: 0.25      # 0.6 min margin becomes 0.35 for hot items
   hot_profit_relief: 0.25      # 20 EUR min profit becomes 15 for hot items
 
+# What to skip. All of these are on by default even if this section is missing.
+filters:
+  exclude_kids: true           # skip kids' sizes (140 cm, 10 m., 12 years) and kids' words
+  excluded_sizes: [xxs, xs, xxl, 2xl, xxxl, 3xl, xxxxl, 4xl, 5xl, 6xl]
+  min_shoe_size: 36            # EU; smaller/larger shoes sell slowly
+  max_shoe_size: 47
+  adult_catalogs: [5, 1904]    # search only Vinted's Men (5) + Women (1904) sections
+
 notify:
   # Easiest: install the "ntfy" app on your phone, subscribe to a long random
   # topic name (anyone who knows it can read it), and put it here.

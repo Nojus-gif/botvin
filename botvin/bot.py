@@ -30,10 +30,15 @@ class Bot:
         )
         self.store = store or Store(cfg.get("database", "botvin.db"))
         self.notifier = notifier or Notifier(cfg.get("notify") or {})
-        self.model = model or PriceModel(brand_overrides=cfg.get("brands"))
+        self.model = model or PriceModel(brand_overrides=cfg.get("brands"),
+                                         filters=cfg.get("filters"))
         self.t = Thresholds(**(cfg.get("thresholds") or {}))
         self.feeds: list[dict] = cfg.get("feeds") or [{"name": "everything", "search_text": ""}]
         self.fetch_descriptions = bool(cfg.get("fetch_descriptions", True))
+        filters = cfg.get("filters") or {}
+        # Vinted catalog ids: 5 = Men, 1904 = Women (1193 = Kids, not searched).
+        self.adult_catalogs: list[int] = list(filters.get("adult_catalogs", [5, 1904]) or [])
+        self._no_catalog_filter: set = set()
 
     # ------------------------------------------------------------------ core
     def process(self, item: Item, *, first_pass: bool = False) -> Verdict | None:
@@ -107,7 +112,24 @@ class Bot:
 
     def poll_feed(self, feed: dict, *, first_pass: bool = False) -> int:
         params = {k: v for k, v in feed.items() if k in FEED_KEYS}
+        # Search only the Men + Women sections unless the feed picks its own
+        # catalogs, so the flood of kids' listings never even comes back.
+        injected = False
+        if (self.adult_catalogs and not params.get("catalog_ids")
+                and feed.get("name") not in self._no_catalog_filter):
+            params["catalog_ids"] = self.adult_catalogs
+            injected = True
         items = self.client.search(**params)
+        if injected and not items:
+            # Empty might just mean a quiet search -- or wrong catalog ids.
+            params.pop("catalog_ids")
+            unfiltered = self.client.search(**params)
+            if unfiltered:
+                log.warning("feed %s returns nothing when limited to catalogs %s but does "
+                            "without; dropping the catalog filter for it",
+                            feed.get("name"), self.adult_catalogs)
+                self._no_catalog_filter.add(feed.get("name"))
+                items = unfiltered
         new = sum(1 for it in items if self.process(it, first_pass=first_pass) is not None)
         self.store.commit()
         log.info("feed %-20s %3d items, %3d new", feed.get("name", "?"), len(items), new)

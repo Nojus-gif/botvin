@@ -81,7 +81,7 @@ def main(argv: list[str] | None = None) -> None:
 
     if args.cmd == "check":
         cfg = load_config(args.config) if Path(args.config).exists() else {}
-        model = PriceModel(brand_overrides=cfg.get("brands"))
+        model = PriceModel(brand_overrides=cfg.get("brands"), filters=cfg.get("filters"))
         item = Item(id=0, title=args.title, price=args.price, total_price=args.price, currency="EUR",
                     brand=args.brand, size=args.size, condition=args.condition, url="-",
                     description=args.description)

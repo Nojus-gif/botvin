@@ -197,6 +197,15 @@ class VintedClient:
                        f"anon_id={'yes' if self.anon_id else 'no'}")
         except VintedError as e:
             out.append(f"homepage: {e}")
+        try:
+            adult = self.search("jacket", catalog_ids=[5, 1904], per_page=20)
+            kids = self.search("jacket", catalog_ids=[1193], per_page=20)
+            out.append(f"catalog filter: men+women 'jacket' -> {len(adult)} items "
+                       f"(sizes: {', '.join(sorted({i.size for i in adult if i.size})[:10])}); "
+                       f"kids -> {len(kids)} items "
+                       f"(sizes: {', '.join(sorted({i.size for i in kids if i.size})[:6])})")
+        except VintedError as e:
+            out.append(f"catalog filter: {e}")
         for label, url, legacy in (("svc-catalogue", self.api + SEARCH_PATH, False),
                                    ("legacy api/v2", self.base + LEGACY_SEARCH_PATH, True)):
             params = build_params(search_text, per_page=5, legacy=legacy)

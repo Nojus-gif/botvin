@@ -115,7 +115,8 @@ def test_bot_alerts_only_on_new_items_after_first_sweep(tmp_path, monkeypatch):
     junk = make("Zara jacket", 5, "Zara", id_=3)
     client = FakeClient([[old], [old, new, junk], [old, new, junk]])
     notifier = FakeNotifier()
-    bot = Bot({"feeds": [{"name": "t"}]}, client=client, store=Store(tmp_path / "t.db"),
+    bot = Bot({"feeds": [{"name": "t"}], "filters": {"adult_catalogs": []}}, client=client,
+              store=Store(tmp_path / "t.db"),
               notifier=notifier, model=PriceModel())
     bot.run(once=True)                     # first sweep: record only
     assert notifier.sent == []
@@ -176,7 +177,8 @@ def test_bot_alerts_when_existing_item_heats_up(tmp_path, monkeypatch):
     client = FakeClient([[], [cold], [hot], [hot]])
     notifier = FakeNotifier()
     store = Store(tmp_path / "t.db")
-    bot = Bot({"feeds": [{"name": "t"}], "thresholds": {"min_profit": 15}}, client=client,
+    bot = Bot({"feeds": [{"name": "t"}], "thresholds": {"min_profit": 15},
+               "filters": {"adult_catalogs": []}}, client=client,
               store=store, notifier=notifier, model=PriceModel())
     bot.run(once=True)
     bot.poll_feed({"name": "t"})
@@ -220,4 +222,57 @@ def test_latvian_estonian_categories():
     assert model.detect_category("Patagonia jope") == "jacket"
     it = make("The North Face silta flīsa jaka ar kapuci", 20, "The North Face",
               desc="Youth/Junior XL izmērs.")
-    assert "kids item?" in model.estimate(it, when=NOV).flags
+    assert model.estimate(it, when=NOV).excluded == "kids item"
+
+
+@pytest.mark.parametrize("size,reason", [
+    ("140 cm", "kids size"), ("152 cm / 11-12 m.", "kids size"), ("10 metų", "kids size"),
+    ("12 years", "kids size"), ("8 lat", "kids size"), ("18 mėn.", "kids size"),
+    ("XXL", "extreme size"), ("XXL / 44 / 16", "extreme size"), ("3XL", "extreme size"),
+    ("XS", "extreme size"), ("XXS / 32 / 4", "extreme size"), ("XXXL", "extreme size"),
+])
+def test_bad_sizes_excluded(size, reason):
+    est = model.estimate(make("Kurtka Columbia", 10, "Columbia", size=size), when=NOV)
+    assert est.excluded and est.excluded.startswith(reason), est.excluded
+
+
+@pytest.mark.parametrize("size", ["S", "M", "L", "XL", "L / 40 / 12", "M / 38 / 10", "One size", ""])
+def test_normal_sizes_kept(size):
+    est = model.estimate(make("Kurtka Columbia", 10, "Columbia", size=size), when=NOV)
+    assert est.excluded is None, est.excluded
+
+
+def test_kids_words_and_shoe_sizes():
+    assert model.estimate(make("Kurtka Columbia chłopięca", 10, "Columbia"), when=NOV).excluded
+    assert model.estimate(make("Nike Air Max 90", 30, "Nike", size="33"), when=NOV).excluded
+    assert model.estimate(make("Nike Air Max 90", 30, "Nike", size="43"), when=NOV).excluded is None
+    assert model.estimate(make("Nike Air Max 90", 30, "Nike", size="49"), when=NOV).excluded
+    # "baby blue" is a colour, not a kids' item
+    assert model.estimate(make("Ralph Lauren baby blue sweater", 10, "Ralph Lauren"), when=NOV).excluded is None
+
+
+def test_filters_can_be_turned_off():
+    m = PriceModel(filters={"exclude_kids": False, "excluded_sizes": []})
+    assert m.estimate(make("Kurtka Columbia", 10, "Columbia", size="XXL"), when=NOV).excluded is None
+    assert m.estimate(make("Kurtka Columbia", 10, "Columbia", size="140 cm"), when=NOV).excluded is None
+
+
+def test_feeds_limited_to_adult_catalogs(tmp_path):
+    calls = []
+    class C(FakeClient):
+        def __init__(self, unfiltered):
+            self.unfiltered = unfiltered
+        def search(self, **kw):
+            calls.append(kw.get("catalog_ids"))
+            return self.unfiltered if kw.get("catalog_ids") is None else []
+    # Quiet search: empty both ways -> keep the filter.
+    bot = Bot({"feeds": [{"name": "t"}]}, client=C([]), store=Store(tmp_path / "a.db"),
+              notifier=FakeNotifier(), model=PriceModel())
+    bot.poll_feed({"name": "t"}); bot.poll_feed({"name": "t"})
+    assert calls == [[5, 1904], None, [5, 1904], None]
+    # Filter is the problem (results only without it) -> drop it for this feed.
+    calls.clear()
+    bot = Bot({"feeds": [{"name": "t"}]}, client=C([make("Kurtka Columbia", 15, "Columbia")]),
+              store=Store(tmp_path / "b.db"), notifier=FakeNotifier(), model=PriceModel())
+    bot.poll_feed({"name": "t"}); bot.poll_feed({"name": "t"})
+    assert calls == [[5, 1904], None, None]

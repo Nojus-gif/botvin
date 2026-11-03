@@ -60,10 +60,36 @@ CONDITION_MULT = {
     "unknown": 0.90,
 }
 
-SIZE_MULT = {
-    "xxs": 0.75, "xs": 0.85, "s": 0.95, "m": 1.0, "l": 1.0, "xl": 1.0,
-    "xxl": 0.95, "2xl": 0.95, "3xl": 0.85, "xxxl": 0.85,
-}
+SIZE_MULT = {"s": 0.95, "m": 1.0, "l": 1.0, "xl": 1.0}
+
+# Letter sizes that sell slowly -> skipped by default (configurable).
+DEFAULT_EXCLUDED_SIZES = ["xxs", "xs", "xxl", "2xl", "xxxl", "3xl", "xxxxl", "4xl", "5xl", "6xl"]
+
+# Kids' sizes on Vinted: "140 cm", "9-10 m.", "12 years", "8 lat", "6 ans", "18 mėn."...
+_AGE_UNITS = (r"m\.|m|metų|metai|mėn\.?|years?|yrs?|y|lat|lata|ans|jahre|años|anni|vuotta|"
+              r"months?|mo|mies\.?|miesięcy|kk|gadi|aastat")
+_KIDS_SIZE_RES = [
+    re.compile(r"\b(\d{2,3})\s*cm\b"),                                      # body height in cm
+    re.compile(rf"\b\d{{1,2}}(?:\s*[-/]\s*\d{{1,2}})?\s*(?:{_AGE_UNITS})(?![\w])"),
+    re.compile(r"\b(?:kids?|junior|youth|baby|toddler)\b"),
+]
+_LETTER_SIZE_RE = re.compile(r"^\s*((?:\d)?x{0,4}[sml]|\dxl|x{0,4}l)\b")
+
+
+def kids_size(size: str) -> bool:
+    s = normalize(size)
+    if not s:
+        return False
+    m = _KIDS_SIZE_RES[0].search(s)
+    if m and 40 <= int(m.group(1)) <= 176:
+        return True
+    return bool(_KIDS_SIZE_RES[1].search(s) or _KIDS_SIZE_RES[2].search(s))
+
+
+def letter_size(size: str) -> str | None:
+    """'XXL / 44 / 16' -> 'xxl'; '42' -> None."""
+    m = _LETTER_SIZE_RE.match(normalize(size))
+    return m.group(1) if m else None
 
 
 def normalize(text: str) -> str:
@@ -107,7 +133,14 @@ class Estimate:
 
 
 class PriceModel:
-    def __init__(self, data_file: Path | str = DATA_FILE, brand_overrides: dict | None = None):
+    def __init__(self, data_file: Path | str = DATA_FILE, brand_overrides: dict | None = None,
+                 filters: dict | None = None):
+        filters = filters or {}
+        self.exclude_kids = bool(filters.get("exclude_kids", True))
+        self.excluded_sizes = {normalize(x) for x in
+                               filters.get("excluded_sizes", DEFAULT_EXCLUDED_SIZES)}
+        self.min_shoe_size = float(filters.get("min_shoe_size", 36))
+        self.max_shoe_size = float(filters.get("max_shoe_size", 47))
         with open(data_file, encoding="utf-8") as f:
             data = yaml.safe_load(f)
         if brand_overrides:
@@ -156,6 +189,24 @@ class PriceModel:
                 return cat
         return "other"
 
+    def size_exclusion(self, item: Item, category: str, text: str) -> str | None:
+        """Reason to skip the item because of its size / being for kids."""
+        if self.exclude_kids:
+            if kids_size(item.size):
+                return f"kids size ({item.size})"
+            if _contains(self.kids_re, text):
+                return "kids item"
+        letter = letter_size(item.size)
+        if letter and letter in self.excluded_sizes:
+            return f"extreme size ({item.size})"
+        if category in ("shoes", "boots"):
+            m = re.match(r"\s*(\d{2}(?:[.,]5)?)\b", item.size or "")
+            if m:
+                eu = float(m.group(1).replace(",", "."))
+                if eu < self.min_shoe_size or eu > self.max_shoe_size:
+                    return f"shoe size {item.size}"
+        return None
+
     def season_mult(self, category: str, when: dt.date | None = None) -> float:
         month = (when or dt.date.today()).month
         curve = self.seasonality[self.category_season.get(category, "neutral")]
@@ -174,6 +225,9 @@ class PriceModel:
             return Estimate(brand, category, 0, 0, None, 0, 0, ["possible fake"], excluded="fake keywords")
         if not brand:
             return Estimate(None, category, 0, 0, None, 0, 0, [], excluded="unknown brand")
+        skip = self.size_exclusion(item, category, text)
+        if skip:
+            return Estimate(brand, category, 0, 0, None, 0, 0, [], excluded=skip)
 
         info = self.brands[brand]
         overrides = info.get("overrides") or {}
@@ -194,13 +248,13 @@ class PriceModel:
 
         season = self.season_mult(category, when)
         cond = CONDITION_MULT.get(item.condition, CONDITION_MULT["unknown"])
-        size = SIZE_MULT.get(normalize(item.size).split(" ")[0], 1.0)
+        size = SIZE_MULT.get(letter_size(item.size) or "", 1.0)
 
         mult = premium_mult * season * cond * size
         if _contains(self.damage_re, text):
             mult *= 0.75
             flags.append("damage mentioned")
-        if _contains(self.kids_re, text):
+        if _contains(self.kids_re, text):        # only reached if exclude_kids is off
             mult *= 0.5
             flags.append("kids item?")
         if season >= 1.1:

@@ -24,7 +24,12 @@ For every new listing:
    - **Model names**: `gore-tex`, `nuptse`, `summit series`, `beta ar`, `nano puff`…
    - **Damage words** (`uszkodzony`, `skylė`, `rikki`, `kaputt`…): ×0.75. The
      item still gets alerted, with a ⚠ flag, because a damaged TNF can still flip.
-   - **Kids' items**: ×0.5. **Fake words** (`replica`, `1:1`, `podróbka`…): skipped.
+   - **Fake words** (`replica`, `1:1`, `podróbka`…): skipped.
+   - **Kids' items and extreme sizes: skipped.** Searches only cover Vinted's
+     Men + Women sections. Anything else is dropped if it has a kids' size
+     (`140 cm`, `10 m.`, `12 years`), kids' words (`junior`, `chłopięca`,
+     `vaikiška`), XXS/XS/XXL/3XL+ sizes, or shoes outside EU 36–47.
+     Change this under `filters:` in `config.yaml`.
 5. **Market blend**: the bot stores every listing it sees in SQLite. Once it has
    at least 5 comparable listings (same brand and category, last 30 days), it
    blends their median asking price into the estimate.
