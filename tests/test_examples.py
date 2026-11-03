@@ -290,3 +290,8 @@ def test_dolce_gabbana_and_margiela():
     assert est.excluded is None and est.category == "shoes"
     # ...but "replica" still flags fakes for other brands.
     assert model.estimate(make("Nike Air Max replica", 30, "Nike", size="43"), when=NOV).excluded == "fake keywords"
+
+
+def test_lithuanian_shirt_vs_tshirt():
+    assert model.detect_category("Dolce Gabbana marškiniai") == "shirt"
+    assert model.detect_category("Nike marškinėliai") == "tshirt"
