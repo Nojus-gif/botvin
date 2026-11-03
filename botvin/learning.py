@@ -91,7 +91,7 @@ def report(store, window_hours: float) -> str:
 
     def table(title: str, column: str, min_n: int = 2) -> None:
         rows = store.outcome_breakdown(column)
-        rows = [r for r in rows if r[2] >= min_n]
+        rows = [r for r in rows if r[2] >= min_n and r[0] not in (None, "")]
         if not rows:
             return
         lines.append("")
