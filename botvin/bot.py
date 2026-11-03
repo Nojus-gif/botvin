@@ -44,7 +44,9 @@ class Bot:
         # Vinted catalog ids: 5 = Men, 1904 = Women (1193 = Kids, not searched).
         self.adult_catalogs: list[int] = list(filters.get("adult_catalogs", [5, 1904]) or [])
         self._no_catalog_filter: set = set()
-        self.checks_per_sweep = int(cfg.get("watch_checks_per_sweep", 6))
+        # Page re-checks slow down the sweep; a couple per sweep keeps up with
+        # the schedule without delaying new listings much.
+        self.checks_per_sweep = int(cfg.get("watch_checks_per_sweep", 2))
 
     # ------------------------------------------------------------------ core
     def process(self, item: Item, *, first_pass: bool = False) -> Verdict | None:
@@ -216,11 +218,15 @@ class Bot:
         return new
 
     def run(self, once: bool = False) -> None:
-        interval = float(self.cfg.get("poll_interval", 20))
+        # Good deals sell within 2-30 minutes, so get back to each feed fast.
+        # Requests are still spaced by min_request_interval, so this doesn't
+        # hammer Vinted any harder; it just removes idle time.
+        interval = float(self.cfg.get("poll_interval", 5))
         # On the very first sweep we only record what's already listed so a
         # restart doesn't spam you with old items -- unless configured otherwise.
         first = not self.cfg.get("alert_on_startup", False)
         while True:
+            started = time.time()
             for feed in self.feeds:
                 try:
                     self.poll_feed(feed, first_pass=first)
@@ -231,6 +237,8 @@ class Bot:
             except VintedError as e:
                 log.error("watchlist failed: %s", e)
             first = False
+            log.info("sweep took %.0fs (each search re-checked every ~%.0fs)",
+                     time.time() - started, time.time() - started + interval)
             if once:
                 return
             time.sleep(interval * random.uniform(0.8, 1.2))

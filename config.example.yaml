@@ -1,7 +1,7 @@
 # Copy to config.yaml and edit. config.yaml is git-ignored (it holds your tokens).
 
 domain: vinted.lt              # Vinted shows cross-border EU listings on every domain
-poll_interval: 20              # seconds between sweeps (jittered ±20%)
+poll_interval: 5               # seconds of pause between sweeps (jittered ±20%)
 min_request_interval: 2.0      # seconds between any two HTTP requests -- don't go lower
 database: botvin.db
 fetch_descriptions: true       # open promising items' pages: real upload time + description

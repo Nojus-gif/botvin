@@ -23,7 +23,7 @@ CATEGORY_KEYWORDS: list[tuple[str, list[str]]] = [
     ("puffer", ["sulejope", "~untejope", "talvejope", "ziemas jaka", "puffer", "down jacket",
                 "~untuva", "~daunen", "~dunjack", "~dunjakke", "doudoune", "piumino", "plumas",
                 "talvitakki", "winterjacke"]),
-    ("shell", ["hardshell", "shell", "regenjacke", "sadetakki"]),
+    ("shell", ["hardshell", "shell", "torrentshell", "regenjacke", "sadetakki", "~kuoritakki"]),
     ("vest", ["vest", "gilet", "bezrękaw", "liemen", "liivi", "weste", "smanicato"]),
     ("fleece", ["flīs", "~flīs", "fleece", "polar", "flis", "fliis", "fleecejacke", "polaire"]),
     ("coat", ["mētel", "mantel", "coat", "płaszcz", "palt", "mantel", "manteau", "cappotto", "abrigo", "parka", "trench"]),
