@@ -395,3 +395,15 @@ def test_item_page_likes_scoped_to_item():
             '{"similar":[{"id":777,"favourite_count":300,"is_closed":true}]}</script>')
     r = parse_item_page(page, now=time.time(), item_id=555)
     assert (r["likes"], r["views"], r["sold"]) == (9, 120, False)
+
+
+def test_brand_mismatch_in_title():
+    emu = make("Šilti, aukšti Emu batai", 6.72, "UGG", size="43")
+    assert model.estimate(emu, when=NOV).excluded == "says 'emu', not UGG"
+    for title in ("Batai a la UGG", "UGG style boots", "Kurtka typu Moncler", "Striukė kaip Arcteryx",
+                  "Kurtka w stylu Stone Island"):
+        brand = model.match_brand(make(title, 10, ""))[0]
+        assert model.estimate(make(title, 10, brand or "", size="43"), when=NOV).excluded, title
+    # genuine items are untouched ("Emu" must be a word, not part of one)
+    assert model.estimate(make("UGG Classic Tall batai", 30, "UGG", size="43"), when=NOV).excluded is None
+    assert model.estimate(make("Moncler Maya puffer", 90, "Moncler"), when=NOV).excluded is None

@@ -189,6 +189,28 @@ class PriceModel:
                 return cat
         return "other"
 
+    # "a la UGG", "UGG style", "tipo Moncler", "kaip Arcteryx", "w stylu Stone Island"...
+    _STYLE_BEFORE = (r"a\s*'?\s*la|ala|à\s+la|style|type|typu|typ|w\s+typie|tipo|tipas|kaip|panaš\w*\s+į|w\s+stylu|"
+                     r"jak|like|look\s*alike|inspired\s+by|in\s+the\s+style\s+of|im\s+stil\s+von|"
+                     r"genre|façon|stil")
+    _STYLE_AFTER = r"style|type|tipo|stiliaus|look|like|inspired|stil|styl"
+
+    def brand_mismatch(self, brand: str, text: str) -> str | None:
+        """Listing tagged with a brand it isn't: the title names a different
+        (usually cheaper) brand, or says it's only in that brand's style."""
+        info = self.brands.get(brand) or {}
+        others = info.get("other_brands") or []
+        if others and _contains(_word_prefix_pattern([o for o in others]), text):
+            hit = next(o for o in others if _contains(_word_prefix_pattern([o]), text))
+            return f"says '{hit}', not {brand}"
+        aliases = set(info.get("aliases") or []) | {brand}
+        alts = "|".join(re.escape(normalize(a)) for a in sorted(aliases, key=len, reverse=True))
+        rx = re.compile(rf"(?<![\w])(?:(?:{self._STYLE_BEFORE})\s*[-:]?\s*(?:{alts})(?![\w])"
+                        rf"|(?:{alts})[\s-]*(?:{self._STYLE_AFTER})(?![\w]))", re.UNICODE)
+        if _contains(rx, text):
+            return f"only '{brand}'-style"
+        return None
+
     def size_exclusion(self, item: Item, category: str, text: str) -> str | None:
         """Reason to skip the item because of its size / being for kids."""
         if self.exclude_kids:
@@ -223,6 +245,10 @@ class PriceModel:
 
         brand, brand_from_field = self.match_brand(item)
         category = self.detect_category(item.title) if item.title else "other"
+
+        mismatch = self.brand_mismatch(brand, text) if brand else None
+        if mismatch:
+            return Estimate(brand, category, 0, 0, None, 0, 0, [], excluded=mismatch)
 
         fake_text = text
         for word in (self.brands.get(brand) or {}).get("not_fake_words") or []:

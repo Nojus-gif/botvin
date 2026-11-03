@@ -75,10 +75,12 @@ brands:
     not_fake_words: ["replica"]
   "Moncler":
     aliases: ["moncler"]
+    other_brands: ["moncler style"]
     base: 350
     overrides: {tshirt: 70, hoodie: 130}
   "Canada Goose":
     aliases: ["canada goose"]
+    other_brands: ["canada weather gear", "canadian peak"]
     base: 380
   "Stone Island":
     aliases: ["stone island", "stoneisland"]
@@ -195,9 +197,11 @@ brands:
     base: 30
     overrides: {shoes: 45, tshirt: 12}
   "UGG":
-    aliases: ["ugg"]
+    aliases: ["ugg", "uggs"]
     base: 50
     overrides: {boots: 55}
+    # Cheaper brands often tagged as UGG; if the title names one, it isn't UGG.
+    other_brands: ["emu", "bearpaw", "inuikii", "mou", "shepherd", "australia luxe", "ugg style"]
   "Timberland":
     aliases: ["timberland"]
     base: 45
