@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import random
 import time
@@ -14,6 +15,10 @@ from .storage import Store
 from .vinted import VintedClient, VintedError
 
 log = logging.getLogger(__name__)
+
+# Re-open a promising item's page this many minutes after upload, to see how
+# many likes it is collecting and whether it sold.
+CHECK_AT_MINUTES = [5, 10, 15, 25, 40, 60]
 
 FEED_KEYS = {"search_text", "catalog_ids", "brand_ids", "size_ids", "status_ids",
              "price_from", "price_to", "per_page"}
@@ -39,6 +44,7 @@ class Bot:
         # Vinted catalog ids: 5 = Men, 1904 = Women (1193 = Kids, not searched).
         self.adult_catalogs: list[int] = list(filters.get("adult_catalogs", [5, 1904]) or [])
         self._no_catalog_filter: set = set()
+        self.checks_per_sweep = int(cfg.get("watch_checks_per_sweep", 6))
 
     # ------------------------------------------------------------------ core
     def process(self, item: Item, *, first_pass: bool = False) -> Verdict | None:
@@ -86,6 +92,8 @@ class Bot:
 
         if is_new:
             self.store.mark_seen(item, est.brand, est.category)
+        if promising and not self.store.was_alerted(item.id):
+            self._add_to_watchlist(item, track)
         # A re-sighted item only alerts if demand is what changed (it got hot);
         # otherwise drifting market medians could resurface old listings.
         if v.is_deal and not first_pass and (is_new or v.demand.level == "hot"):
@@ -95,6 +103,75 @@ class Bot:
             log.debug("skip %s [%s/%s] %.2f€ est %.0f: %s", item.title, est.brand,
                       est.category, item.total_price, est.resale, "; ".join(v.reasons))
         return v if is_new else None
+
+    # ------------------------------------------------------------ watchlist
+    @staticmethod
+    def _next_check(start: float, now: float) -> float | None:
+        elapsed = (now - start) / 60
+        for m in CHECK_AT_MINUTES:
+            if m > elapsed + 0.5:
+                return start + m * 60
+        return None
+
+    def _add_to_watchlist(self, item: Item, track: dict) -> None:
+        start = track.get("uploaded_at") or track["first_seen"]
+        if track["from_startup"] and not track.get("uploaded_at"):
+            return                              # unknown age: rates would be meaningless
+        nxt = self._next_check(start, time.time())
+        if nxt is None:
+            return
+        snapshot = {k: getattr(item, k) for k in ("id", "title", "price", "total_price", "currency",
+                                                   "brand", "size", "condition", "url", "photo_url")}
+        self.store.watch(item.id, nxt, json.dumps(snapshot))
+
+    def check_watchlist(self, now: float | None = None) -> int:
+        """Re-open due items: update likes/views/sold, alert if demand got hot."""
+        now = now or time.time()
+        done = 0
+        for row in self.store.due_checks(now, self.checks_per_sweep):
+            if not row.get("item_json"):
+                self.store.update_check(row["id"], likes=None, views=None, sold=False, next_check=None)
+                continue
+            item = Item(**json.loads(row["item_json"]))
+            try:
+                page = self.client.item_page(item.url)
+            except VintedError as e:
+                log.debug("watch check failed for %s: %s", item.id, e)
+                page = {}
+            start = row.get("uploaded_at") or page.get("uploaded_at") or row["first_seen"]
+            sold = bool(page.get("sold"))
+            self.store.update_check(item.id, likes=page.get("likes"), views=page.get("views"),
+                                    sold=sold, next_check=None if sold else self._next_check(start, now),
+                                    now=now)
+            done += 1
+            age = (now - start) / 60
+            if sold:
+                log.info("SOLD after ~%.0f min: %s (%s)", age, item.title, item.url)
+                continue
+            track = self.store.tracking(item.id)
+            item.favourites, item.views = track["fav_last"], track["views_last"]
+            item.description = track.get("description") or ""
+            item.uploaded_at = start
+            self._rescore_watched(item, track)
+        return done
+
+    def _rescore_watched(self, item: Item, track: dict) -> None:
+        brand, category = track["brand"], track["category"]
+        market = self.store.market(brand, category) if brand else (None, 0)
+        demand = self._demand(item, track, brand, category)
+        est = self.model.estimate(item, market)
+        v = evaluate(item, est, self.t, demand)
+        log.info("watch %-40.40s ♥%-3d %5.1f/h %-6s %s", item.title, demand.likes,
+                 demand.likes_per_hour or 0, demand.level, "DEAL" if v.is_deal else "; ".join(v.reasons))
+        if demand.level != "hot":
+            return
+        if not self.store.was_alerted(item.id):
+            if v.is_deal:
+                self.notifier.send(item, est, v, heating_up=True)
+                self.store.record_alert(item, est.resale, v.profit)
+        elif not track.get("followup") and not est.excluded:
+            self.notifier.send(item, est, v, confirmed=True)
+            self.store.set_followup(item.id)
 
     def _demand(self, item: Item, track: dict, brand: str | None, category: str):
         """Likes/views per hour since upload. Uses the item page's upload time
@@ -107,8 +184,11 @@ class Bot:
         else:
             minutes = (track["last_seen"] - track["first_seen"]) / 60
         rate, n = self.store.category_demand(brand, category) if brand else (None, 0)
-        return measure_demand(max(item.favourites, track["fav_last"]),
-                              max(item.views, track["views_last"]), minutes, self.t, rate, n)
+        d = measure_demand(max(item.favourites, track["fav_last"]),
+                           max(item.views, track["views_last"]), minutes, self.t, rate, n)
+        if brand:
+            d.sold, d.watched = self.store.sell_through(brand, category)
+        return d
 
     def poll_feed(self, feed: dict, *, first_pass: bool = False) -> int:
         params = {k: v for k, v in feed.items() if k in FEED_KEYS}
@@ -146,6 +226,10 @@ class Bot:
                     self.poll_feed(feed, first_pass=first)
                 except VintedError as e:
                     log.error("feed %s failed: %s", feed.get("name"), e)
+            try:
+                self.check_watchlist()
+            except VintedError as e:
+                log.error("watchlist failed: %s", e)
             first = False
             if once:
                 return

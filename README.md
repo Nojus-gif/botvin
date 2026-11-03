@@ -33,15 +33,20 @@ For every new listing:
 5. **Market blend**: the bot stores every listing it sees in SQLite. Once it has
    at least 5 comparable listings (same brand and category, last 30 days), it
    blends their median asking price into the estimate.
-6. **Demand (likes over time)**: every sweep re-checks items it has already
-   seen and records their likes and views. Because the bot polls every ~20 s,
-   the first time it sees an item is effectively when it was uploaded, so it
-   knows "♥ 6 in 12 min (30/h)". It also learns the usual likes/hour for each
-   brand and type, and says "3.1× usual for this brand/type". An item is **hot**
-   at 10+ likes/hour, or at 2× the usual rate. Hot items get high priority and
-   may pass with a lower margin (−25 points of margin, −25% of minimum profit),
-   because they resell fast. An item that wasn't a deal when listed but heats
-   up later gets a "Demand picked up" alert.
+6. **Demand (likes over time)**: popular items get seen by lots of people
+   fast, so few likes after a while means it won't resell quickly. Every
+   promising item goes on a watchlist and its page is re-opened 5, 10, 15, 25,
+   40 and 60 minutes after upload to read likes, views and whether it sold.
+   - **Cold**: fewer than 8 likes/hour after 15 min, or 60+ views with under
+     4% liking it. It's no longer a deal (5 likes in an hour = skip).
+   - **Hot**: 15+ likes/hour (at least 3 likes), or 2× the usual rate for that
+     brand and type. High priority, and it may pass with a lower margin.
+   - **Alerts**: you get the first alert as soon as the price looks right,
+     marked "too early to judge demand". If it then turns hot, you get one
+     "✅ Demand confirmed" follow-up. An item that wasn't cheap enough at first
+     but turns hot gets a "Demand picked up" alert.
+   - **Learning**: the bot records how fast watched items sell, and alerts
+     show "7/10 similar sold within 1 h" per brand and type.
 7. **Decision**: `profit = resale − (price incl. buyer fee + shipping)`. You get
    an alert when profit ≥ €20, margin ≥ 60%, confidence ≥ 0.6 and the listing
    is less than 90 minutes old. It's marked **high priority** when profit is

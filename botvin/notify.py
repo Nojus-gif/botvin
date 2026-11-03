@@ -15,7 +15,7 @@ log = logging.getLogger(__name__)
 
 
 def format_message(item: Item, est: Estimate, v: Verdict,
-                   heating_up: bool = False) -> tuple[str, str]:
+                   heating_up: bool = False, confirmed: bool = False) -> tuple[str, str]:
     prefix = "🔥 " if v.demand.level == "hot" else ""
     title = f"{prefix}+{v.profit:.0f}€  {est.brand or item.brand} {est.category} · {item.total_price:.2f}€"
     lines = [
@@ -24,7 +24,10 @@ def format_message(item: Item, est: Estimate, v: Verdict,
         f"Size {item.size or '?'} · {item.condition.replace('_', ' ')}",
         v.demand.describe(),
     ]
-    if heating_up:
+    if confirmed:
+        title = "✅ Demand confirmed: " + title
+        lines.insert(0, "The deal you got earlier is getting lots of likes:")
+    elif heating_up:
         lines.insert(0, "Demand picked up since it was listed:")
     if est.market_samples:
         lines.append(f"Market: median {est.market_median:.0f}€ over {est.market_samples} listings")
@@ -38,8 +41,9 @@ class Notifier:
         self.ntfy = cfg.get("ntfy") or {}
         self.telegram = cfg.get("telegram") or {}
 
-    def send(self, item: Item, est: Estimate, v: Verdict, heating_up: bool = False) -> None:
-        title, body = format_message(item, est, v, heating_up)
+    def send(self, item: Item, est: Estimate, v: Verdict, heating_up: bool = False,
+             confirmed: bool = False) -> None:
+        title, body = format_message(item, est, v, heating_up, confirmed)
         log.info("DEAL %s\n%s\n%s", title, body, item.url)
         if self.ntfy.get("topic"):
             self._ntfy(title, body, item, v)

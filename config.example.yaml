@@ -15,11 +15,13 @@ thresholds:
   shipping_cost: 3.5
   max_age_minutes: 90
   high_priority_profit: 50
-  # Demand: likes per hour since the bot first saw the item. "Hot" items
-  # (>= hot_likes_per_hour, or 2x the usual rate for that brand+type) get
-  # high priority and may pass with a lower margin, because they sell fast.
-  hot_likes_per_hour: 10
-  warm_likes_per_hour: 3
+  # Demand = likes per hour since upload. Promising items are re-checked
+  # 5, 10, 15, 25, 40 and 60 min after upload.
+  hot_likes_per_hour: 15       # hot: high priority, lower margin OK, "demand confirmed" alert
+  warm_likes_per_hour: 8
+  cold_likes_per_hour: 8       # below this after cold_after_minutes -> not a deal
+  cold_after_minutes: 15
+  cold_like_view_ratio: 0.04   # <4 likes per 100 views (60+ views) -> not a deal
   hot_margin_relief: 0.25      # 0.6 min margin becomes 0.35 for hot items
   hot_profit_relief: 0.25      # 20 EUR min profit becomes 15 for hot items
 

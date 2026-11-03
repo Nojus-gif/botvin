@@ -85,8 +85,8 @@ def _json_unescape(s: str) -> str:
         return s
 
 
-def parse_item_page(page: str, now: float | None = None) -> dict:
-    """Return {"uploaded_at": ts|None, "source": str, "description": str}."""
+def parse_item_page(page: str, now: float | None = None, item_id: int | None = None) -> dict:
+    """Return {"uploaded_at", "source", "description", "likes", "views", "sold"}."""
     now = now or time.time()
     # Next.js pages often embed JSON with escaped quotes (\\"key\\":...).
     flat = page.replace('\\"', '"')
@@ -111,6 +111,8 @@ def parse_item_page(page: str, now: float | None = None) -> dict:
         if rel is not None:
             uploaded, source = rel, "relative text"
 
+    scope = _item_scope(flat, item_id)
+
     desc = ""
     m = re.search(r'<meta[^>]+(?:property|name)="og:description"[^>]+content="([^"]*)"', page)
     if not m:
@@ -120,4 +122,33 @@ def parse_item_page(page: str, now: float | None = None) -> dict:
     jm = re.search(r'"description"\s*:\s*"((?:[^"\\]|\\.){10,})"', flat)
     if jm and len(_json_unescape(jm.group(1))) > len(desc):
         desc = _json_unescape(jm.group(1))
-    return {"uploaded_at": uploaded, "source": source, "description": desc.strip()}
+    return {"uploaded_at": uploaded, "source": source, "description": desc.strip(),
+            "likes": _first_int(scope, ("favourite_count", "favorite_count", "favourites_count")),
+            "views": _first_int(scope, ("view_count", "views_count")),
+            "sold": _is_sold(scope)}
+
+
+def _item_scope(flat: str, item_id: int | None, radius: int = 4000) -> str:
+    """The page also embeds 'similar items' with their own like counts. Only
+    look at text around this item's own id, if we know it."""
+    if not item_id:
+        return flat
+    m = re.search(rf'"id"\s*:\s*"?{item_id}\b', flat)
+    if not m:
+        return flat
+    return flat[max(0, m.start() - radius): m.end() + radius]
+
+
+def _first_int(flat: str, keys: tuple[str, ...]) -> int | None:
+    for key in keys:
+        m = re.search(rf'"{key}"\s*:\s*(\d+)', flat)
+        if m:
+            return int(m.group(1))
+    return None
+
+
+def _is_sold(flat: str) -> bool:
+    """True if the page's data marks the item as sold/closed."""
+    if re.search(r'"(?:is_closed|is_sold|is_hidden)"\s*:\s*true', flat):
+        return True
+    return bool(re.search(r'"(?:item_closing_action|closing_action|status_code)"\s*:\s*"sold"', flat))

@@ -116,6 +116,7 @@ def main(argv: list[str] | None = None) -> None:
             print(f"uploaded {(_time.time() - info['uploaded_at']) / 60:.0f} min ago (via {info['source']})")
         else:
             print("upload time NOT FOUND")
+        print(f"likes: {info.get('likes')}  views: {info.get('views')}  sold: {info.get('sold')}")
         print(f"description: {info['description'][:200]!r}")
         return
 

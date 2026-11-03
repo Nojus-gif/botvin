@@ -18,9 +18,13 @@ class Thresholds:
     resell_cost: float = 0.0          # e.g. packaging; Vinted sellers pay no fee
     max_age_minutes: float = 90.0     # ignore listings older than this
     high_priority_profit: float = 50.0
-    # Demand (likes per hour since the bot first saw the item):
-    hot_likes_per_hour: float = 10.0
-    warm_likes_per_hour: float = 3.0
+    # Demand (likes per hour since upload). Popular brands get seen by lots of
+    # people fast; few likes after a while means it won't resell quickly.
+    hot_likes_per_hour: float = 15.0
+    warm_likes_per_hour: float = 8.0
+    cold_likes_per_hour: float = 8.0  # below this after cold_after_minutes -> not a deal
+    cold_after_minutes: float = 15.0
+    cold_like_view_ratio: float = 0.04  # <4 likes per 100 views (once 60+ views) -> cold
     min_watch_minutes: float = 3.0    # need this long before a rate means anything
     hot_margin_relief: float = 0.25   # hot items may have this much lower margin
     hot_profit_relief: float = 0.25   # ...and this fraction lower min profit
@@ -35,7 +39,9 @@ class Demand:
     views_per_hour: float | None = None
     category_likes_per_hour: float | None = None   # median for same brand+category
     category_samples: int = 0
-    level: str = "unknown"            # hot | warm | normal | unknown
+    level: str = "unknown"            # hot | warm | normal | cold | unknown
+    sold: int = 0                     # comparable items that sold within an hour...
+    watched: int = 0                  # ...out of this many we watched
 
     @property
     def relative(self) -> float | None:
@@ -53,8 +59,12 @@ class Demand:
         parts.append(f"👁 {self.views}")
         if self.relative is not None and self.category_samples >= 5:
             parts.append(f"{self.relative:.1f}× usual for this brand/type")
-        if self.level in ("hot", "warm"):
-            parts.append("🔥 HOT" if self.level == "hot" else "warm")
+        if self.level in ("hot", "warm", "cold"):
+            parts.append({"hot": "🔥 HOT", "warm": "warm", "cold": "❄ low demand"}[self.level])
+        elif self.level == "normal":
+            parts.append("too early to judge demand")
+        if self.watched >= 5:
+            parts.append(f"{self.sold}/{self.watched} similar sold within 1 h")
         return " · ".join(parts)
 
 
@@ -68,16 +78,21 @@ def measure_demand(likes: int, views: int, minutes: float | None, t: "Thresholds
     hours = max(minutes, t.min_watch_minutes) / 60
     d.likes_per_hour = likes / hours
     d.views_per_hour = views / hours
-    hot = d.likes_per_hour >= t.hot_likes_per_hour
+    hot = d.likes_per_hour >= t.hot_likes_per_hour and likes >= 3
     # Twice as liked as comparable items, with a meaningful baseline, also counts.
     if d.relative is not None and category_samples >= 5 and d.relative >= 2 and likes >= 3:
         hot = True
-    if hot and likes >= 2:
+    judged = minutes >= t.cold_after_minutes
+    # Seen by lots of people but few of them liked it: weak real interest.
+    low_ratio = views >= 60 and likes / views < t.cold_like_view_ratio
+    if hot and not low_ratio:
         d.level = "hot"
-    elif d.likes_per_hour >= t.warm_likes_per_hour and likes >= 1:
+    elif judged and (d.likes_per_hour < t.cold_likes_per_hour or low_ratio):
+        d.level = "cold"
+    elif d.likes_per_hour >= t.warm_likes_per_hour and likes >= 2:
         d.level = "warm"
     else:
-        d.level = "normal"
+        d.level = "normal"              # too early to tell
     return d
 
 
@@ -119,6 +134,9 @@ def evaluate(item: Item, est: Estimate, t: Thresholds, demand: Demand | None = N
             ok = False; reasons.append(f"profit {profit:.0f} < {min_profit:.0f}")
         if margin < min_margin:
             ok = False; reasons.append(f"margin {margin:.0%} < {min_margin:.0%}")
+        if demand.level == "cold":
+            ok = False
+            reasons.append(f"low demand: {demand.likes} likes in {demand.minutes:.0f} min")
         if est.confidence < t.min_confidence:
             ok = False; reasons.append(f"confidence {est.confidence:.2f} < {t.min_confidence:.2f}")
         known_age = age if age is not None else demand.minutes

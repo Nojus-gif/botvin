@@ -146,12 +146,17 @@ def test_demand_levels():
     from botvin.scorer import measure_demand
     t = Thresholds()
     assert measure_demand(5, 60, 10, t).level == "hot"        # 30 likes/h
-    assert measure_demand(1, 10, 15, t).level == "warm"       # 4 likes/h
-    assert measure_demand(0, 5, 20, t).level == "normal"
+    assert measure_demand(2, 10, 10, t).level == "warm"       # 12 likes/h
+    assert measure_demand(0, 5, 5, t).level == "normal"       # too early to judge
     assert measure_demand(3, 10, None, t).level == "unknown"  # age unknown
+    # The user's rule: 5 likes in an hour is not a deal.
+    assert measure_demand(5, 100, 60, t).level == "cold"
+    assert measure_demand(1, 10, 20, t).level == "cold"       # 3 likes/h after 20 min
+    # Lots of views but nobody likes it -> cold even if the rate looks OK
+    assert measure_demand(5, 200, 20, t).level == "cold"
     # 1 like within 20 s must not count as 180/h
     assert measure_demand(1, 2, 0.3, t).likes_per_hour == 20
-    assert measure_demand(1, 2, 0.3, t).level == "warm"
+    assert measure_demand(1, 2, 0.3, t).level == "normal"
     # relative to category: 6/h when comparable items get 2/h -> hot
     assert measure_demand(3, 30, 30, t, category_rate=2.0, category_samples=8).level == "hot"
 
@@ -295,3 +300,98 @@ def test_dolce_gabbana_and_margiela():
 def test_lithuanian_shirt_vs_tshirt():
     assert model.detect_category("Dolce Gabbana marškiniai") == "shirt"
     assert model.detect_category("Nike marškinėliai") == "tshirt"
+
+
+class PageClient(FakeClient):
+    """Feed returns `batches`; item pages return whatever `pages[id]` says."""
+    def __init__(self, batches, pages):
+        super().__init__(batches)
+        self.pages = pages
+    def item_page(self, url):
+        item_id = int(url.rsplit("/", 1)[1])
+        return {"uploaded_at": None, "source": "none", "description": "",
+                "likes": None, "views": None, "sold": False, **self.pages.get(item_id, {})}
+
+
+def _watch_bot(tmp_path, client, notifier, **thr):
+    import botvin.pricing as p
+    return Bot({"feeds": [{"name": "t"}], "thresholds": {"min_profit": 15, **thr},
+                "filters": {"adult_catalogs": []}}, client=client,
+               store=Store(tmp_path / "w.db"), notifier=notifier, model=PriceModel())
+
+
+def _age(store, item_id, minutes):
+    """Pretend the item was first seen `minutes` ago and is due for a check."""
+    store.db.execute("UPDATE tracking SET first_seen=?, next_check=? WHERE id=?",
+                     (time.time() - minutes * 60, time.time() - 1, item_id))
+    store.commit()
+
+
+def test_watchlist_alerts_when_item_heats_up(tmp_path, monkeypatch):
+    import botvin.pricing as p
+    monkeypatch.setattr(p.PriceModel, "season_mult", lambda self, c, w=None: 1.25)
+    item = make("Kurtka Columbia", 28.0, "Columbia", id_=11)   # profit ~13.5: not a deal yet
+    item.uploaded_at = None
+    pages = {}
+    client, notifier = PageClient([[], [item]], pages), FakeNotifier()
+    bot = _watch_bot(tmp_path, client, notifier)
+    bot.run(once=True)
+    bot.poll_feed({"name": "t"})
+    assert notifier.sent == []
+    assert bot.store.tracking(11)["next_check"] is not None      # on the watchlist
+    pages[11] = {"likes": 7, "views": 60}                         # 7 likes in 12 min
+    _age(bot.store, 11, 12)
+    assert bot.check_watchlist() == 1
+    assert notifier.sent == [(11, True)]
+
+
+def test_watchlist_confirms_alerted_deal_once(tmp_path, monkeypatch):
+    import botvin.pricing as p
+    monkeypatch.setattr(p.PriceModel, "season_mult", lambda self, c, w=None: 1.25)
+    item = make("Kurtka Columbia", 15.13, "Columbia", id_=12)
+    item.uploaded_at = None
+    pages = {}
+    notifier = FakeNotifier()
+    sent_kinds = []
+    notifier.send = lambda it, est, v, heating_up=False, confirmed=False: sent_kinds.append(
+        (it.id, "confirmed" if confirmed else "heating" if heating_up else "new"))
+    bot = _watch_bot(tmp_path, PageClient([[], [item]], pages), notifier)
+    bot.run(once=True)
+    bot.poll_feed({"name": "t"})
+    assert sent_kinds == [(12, "new")]
+    pages[12] = {"likes": 6, "views": 50}
+    _age(bot.store, 12, 10)
+    bot.check_watchlist()
+    _age(bot.store, 12, 16)
+    bot.check_watchlist()
+    assert sent_kinds == [(12, "new"), (12, "confirmed")]
+
+
+def test_watchlist_low_demand_never_alerts_and_sold_is_recorded(tmp_path, monkeypatch):
+    import botvin.pricing as p
+    monkeypatch.setattr(p.PriceModel, "season_mult", lambda self, c, w=None: 1.25)
+    item = make("Kurtka Columbia", 28.0, "Columbia", id_=13)
+    item.uploaded_at = None
+    pages = {13: {"likes": 2, "views": 40}}                        # 2 likes in 30 min: cold
+    notifier = FakeNotifier()
+    bot = _watch_bot(tmp_path, PageClient([[], [item]], pages), notifier)
+    bot.run(once=True)
+    bot.poll_feed({"name": "t"})
+    _age(bot.store, 13, 30)
+    bot.check_watchlist()
+    assert notifier.sent == []
+    pages[13] = {"likes": 2, "views": 40, "sold": True}
+    _age(bot.store, 13, 40)
+    bot.check_watchlist()
+    row = bot.store.tracking(13)
+    assert row["sold_at"] is not None and row["next_check"] is None
+    assert bot.store.sell_through("Columbia", "jacket") == (1, 1)
+
+
+def test_item_page_likes_scoped_to_item():
+    from botvin.itempage import parse_item_page
+    page = ('<script>{"item":{"id":555,"favourite_count":9,"view_count":120,"is_closed":false}}'
+            + "x" * 9000 +
+            '{"similar":[{"id":777,"favourite_count":300,"is_closed":true}]}</script>')
+    r = parse_item_page(page, now=time.time(), item_id=555)
+    assert (r["likes"], r["views"], r["sold"]) == (9, 120, False)

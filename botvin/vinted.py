@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import random
+import re
 import time
 from typing import Any
 
@@ -186,7 +187,8 @@ class VintedClient:
         self.last_status = r.status_code
         if r.status_code != 200:
             raise VintedError(f"item page {url} -> HTTP {r.status_code}")
-        return parse_item_page(r.text)
+        m = re.search(r"/items/(\d+)", url)
+        return parse_item_page(r.text, item_id=int(m.group(1)) if m else None)
 
     def probe(self, search_text: str = "columbia") -> list[str]:
         """Diagnostics: try every known endpoint and report what happens."""

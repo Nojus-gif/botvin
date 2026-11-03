@@ -35,8 +35,7 @@ CREATE TABLE IF NOT EXISTS tracking (
     from_startup INTEGER NOT NULL DEFAULT 0,  -- already listed when bot started: age unknown
     brand TEXT,
     category TEXT,
-    description TEXT,                         -- NULL = item page not fetched yet
-    uploaded_at REAL                          -- from the item page, if found
+    description TEXT                          -- NULL = item page not fetched yet
 );
 CREATE INDEX IF NOT EXISTS tracking_bc ON tracking(brand, category, first_seen);
 CREATE TABLE IF NOT EXISTS alerts (
@@ -51,14 +50,26 @@ CREATE TABLE IF NOT EXISTS alerts (
 """
 
 
+EXTRA_TRACKING_COLUMNS = [
+    ("uploaded_at", "REAL"),            # from the item page, if found
+    ("next_check", "REAL"),             # watchlist: when to re-open the item page
+    ("checks", "INTEGER DEFAULT 0"),    # how many times we re-checked it
+    ("sold_at", "REAL"),                # when we noticed it sold
+    ("item_json", "TEXT"),              # enough of the listing to rebuild it
+    ("followup", "INTEGER DEFAULT 0"),  # 1 = "demand confirmed" already sent
+]
+
+
 class Store:
     def __init__(self, path: str | Path = "botvin.db"):
         self.db = sqlite3.connect(str(path))
         self.db.executescript(SCHEMA)
+        # Columns added by later versions; add them to older databases.
         cols = {r[1] for r in self.db.execute("PRAGMA table_info(tracking)")}
-        if "uploaded_at" not in cols:          # databases created by older versions
-            self.db.execute("ALTER TABLE tracking ADD COLUMN uploaded_at REAL")
-            self.db.commit()
+        for col, decl in EXTRA_TRACKING_COLUMNS:
+            if col not in cols:
+                self.db.execute(f"ALTER TABLE tracking ADD COLUMN {col} {decl}")
+        self.db.commit()
 
     def is_seen(self, item_id: int) -> bool:
         return self.db.execute("SELECT 1 FROM seen WHERE id=?", (item_id,)).fetchone() is not None
@@ -129,6 +140,48 @@ class Store:
         if not rates:
             return None, 0
         return statistics.median(rates), len(rates)
+
+    # ------------------------------------------------------------ watchlist
+    def watch(self, item_id: int, next_check: float, item_json: str) -> None:
+        self.db.execute("UPDATE tracking SET next_check=COALESCE(next_check, ?), item_json=? WHERE id=?",
+                        (next_check, item_json, item_id))
+
+    def due_checks(self, now: float, limit: int) -> list[dict]:
+        cur = self.db.execute(
+            "SELECT * FROM tracking WHERE next_check IS NOT NULL AND next_check<=? AND sold_at IS NULL"
+            " ORDER BY next_check LIMIT ?", (now, limit))
+        names = [c[0] for c in cur.description]
+        return [dict(zip(names, r)) for r in cur.fetchall()]
+
+    def update_check(self, item_id: int, *, likes: int | None, views: int | None,
+                     sold: bool, next_check: float | None, now: float | None = None) -> None:
+        now = now or time.time()
+        self.db.execute(
+            "UPDATE tracking SET checks=checks+1, last_seen=?, next_check=?,"
+            " fav_last=MAX(fav_last, COALESCE(?, fav_last)), views_last=MAX(views_last, COALESCE(?, views_last)),"
+            " sold_at=CASE WHEN ? THEN ? ELSE sold_at END WHERE id=?",
+            (now, next_check, likes, views, int(sold), now, item_id))
+        self.db.commit()
+
+    def set_followup(self, item_id: int) -> None:
+        self.db.execute("UPDATE tracking SET followup=1 WHERE id=?", (item_id,))
+        self.db.commit()
+
+    def sell_through(self, brand: str, category: str, within_minutes: float = 60,
+                     days: int = 30) -> tuple[int, int]:
+        """(sold within N minutes, watched long enough to tell) for brand+category."""
+        since = time.time() - days * 86400
+        rows = self.db.execute(
+            "SELECT COALESCE(uploaded_at, first_seen), sold_at, last_seen FROM tracking"
+            " WHERE brand=? AND category=? AND first_seen>=? AND checks>0",
+            (brand, category, since)).fetchall()
+        sold = watched = 0
+        for start, sold_at, last in rows:
+            if sold_at and (sold_at - start) / 60 <= within_minutes:
+                sold += 1; watched += 1
+            elif (last - start) / 60 >= within_minutes:
+                watched += 1
+        return sold, watched
 
     def record_alert(self, item, resale: float, profit: float) -> None:
         self.db.execute(
