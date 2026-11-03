@@ -27,8 +27,8 @@ thresholds:
 filters:
   exclude_kids: true           # skip kids' sizes (140 cm, 10 m., 12 years) and kids' words
   excluded_sizes: [xxs, xs, xxl, 2xl, xxxl, 3xl, xxxxl, 4xl, 5xl, 6xl]
-  min_shoe_size: 36            # EU; smaller/larger shoes sell slowly
-  max_shoe_size: 47
+  min_shoe_size: 42            # EU; only men's sizes that sell fast
+  max_shoe_size: 46
   adult_catalogs: [5, 1904]    # search only Vinted's Men (5) + Women (1904) sections
 
 notify:

@@ -60,6 +60,19 @@ brands:
     aliases: ["arcteryx", "arc'teryx", "arc teryx", "arcterix"]
     base: 180
     overrides: {fleece: 110, tshirt: 45, hoodie: 90, pants: 90}
+  "Dolce & Gabbana":
+    aliases: ["dolce & gabbana", "dolce&gabbana", "dolce and gabbana", "dolce gabbana",
+              "dolce e gabbana", "d&g", "d & g"]
+    base: 150
+    overrides: {shoes: 120, tshirt: 55, shirt: 70, sweater: 90, hoodie: 90, pants: 70,
+                jeans: 65, bag: 150, accessory: 60}
+  "Maison Margiela":
+    aliases: ["maison margiela", "margiela", "maison martin margiela", "mm6", "mm6 maison margiela"]
+    base: 200
+    overrides: {shoes: 160, boots: 280, tshirt: 60, sweater: 130, hoodie: 110, pants: 90,
+                jeans: 90, bag: 180, accessory: 70}
+    # "Replica" is a real Margiela sneaker/fragrance line, not a fake.
+    not_fake_words: ["replica"]
   "Moncler":
     aliases: ["moncler"]
     base: 350
@@ -302,6 +315,7 @@ kids_keywords:
 # Model names that signal the high end of a brand. Each one multiplies the
 # resale estimate (and can force a category).
 premium_keywords:
+  "tabi": {mult: 1.6, category: boots}
   "gore-tex": {mult: 1.25, category: shell}
   "goretex": {mult: 1.25, category: shell}
   "gtx": {mult: 1.15}

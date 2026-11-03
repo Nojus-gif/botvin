@@ -139,8 +139,8 @@ class PriceModel:
         self.exclude_kids = bool(filters.get("exclude_kids", True))
         self.excluded_sizes = {normalize(x) for x in
                                filters.get("excluded_sizes", DEFAULT_EXCLUDED_SIZES)}
-        self.min_shoe_size = float(filters.get("min_shoe_size", 36))
-        self.max_shoe_size = float(filters.get("max_shoe_size", 47))
+        self.min_shoe_size = float(filters.get("min_shoe_size", 42))
+        self.max_shoe_size = float(filters.get("max_shoe_size", 46))
         with open(data_file, encoding="utf-8") as f:
             data = yaml.safe_load(f)
         if brand_overrides:
@@ -200,7 +200,10 @@ class PriceModel:
         if letter and letter in self.excluded_sizes:
             return f"extreme size ({item.size})"
         if category in ("shoes", "boots"):
-            m = re.match(r"\s*(\d{2}(?:[.,]5)?)\b", item.size or "")
+            size_txt = normalize(item.size)
+            # Prefer an explicit EU size ("US 10 / EU 44"), else the first 2-digit number.
+            m = (re.search(r"eu\s*(\d{2}(?:[.,]5)?)", size_txt)
+                 or re.search(r"(?<![\d.,])(\d{2}(?:[.,]5)?)(?![\d])", size_txt))
             if m:
                 eu = float(m.group(1).replace(",", "."))
                 if eu < self.min_shoe_size or eu > self.max_shoe_size:
@@ -221,7 +224,10 @@ class PriceModel:
         brand, brand_from_field = self.match_brand(item)
         category = self.detect_category(item.title) if item.title else "other"
 
-        if _contains(self.fake_re, text):
+        fake_text = text
+        for word in (self.brands.get(brand) or {}).get("not_fake_words") or []:
+            fake_text = fake_text.replace(normalize(word), " ")   # e.g. Margiela "Replica" line
+        if _contains(self.fake_re, fake_text):
             return Estimate(brand, category, 0, 0, None, 0, 0, ["possible fake"], excluded="fake keywords")
         if not brand:
             return Estimate(None, category, 0, 0, None, 0, 0, [], excluded="unknown brand")

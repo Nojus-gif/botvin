@@ -245,9 +245,11 @@ def test_normal_sizes_kept(size):
 
 def test_kids_words_and_shoe_sizes():
     assert model.estimate(make("Kurtka Columbia chłopięca", 10, "Columbia"), when=NOV).excluded
-    assert model.estimate(make("Nike Air Max 90", 30, "Nike", size="33"), when=NOV).excluded
-    assert model.estimate(make("Nike Air Max 90", 30, "Nike", size="43"), when=NOV).excluded is None
-    assert model.estimate(make("Nike Air Max 90", 30, "Nike", size="49"), when=NOV).excluded
+    shoe = lambda size: model.estimate(make("Nike Air Max 90", 30, "Nike", size=size), when=NOV).excluded
+    for ok in ("42", "43", "44.5", "46", "EU 44", "US 10 / EU 44", "44 2/3"):
+        assert shoe(ok) is None, ok
+    for bad in ("33", "38", "41.5", "46.5", "47", "EU 40"):
+        assert shoe(bad), bad
     # "baby blue" is a colour, not a kids' item
     assert model.estimate(make("Ralph Lauren baby blue sweater", 10, "Ralph Lauren"), when=NOV).excluded is None
 
@@ -277,3 +279,14 @@ def test_feeds_limited_to_adult_catalogs(tmp_path):
               store=Store(tmp_path / "b.db"), notifier=FakeNotifier(), model=PriceModel())
     bot.poll_feed({"name": "t"}); bot.poll_feed({"name": "t"})
     assert calls == [[5, 1904], None, None]
+
+
+def test_dolce_gabbana_and_margiela():
+    assert model.match_brand(make("x", 10, "Dolce & Gabbana"))[0] == "Dolce & Gabbana"
+    assert model.match_brand(make("Marškinėliai D&G", 10, ""))[0] == "Dolce & Gabbana"
+    assert model.match_brand(make("x", 10, "Maison Margiela"))[0] == "Maison Margiela"
+    # Margiela "Replica" sneakers are a real line, not a fake...
+    est = model.estimate(make("Maison Margiela Replica sneakers", 60, "Maison Margiela", size="43"), when=NOV)
+    assert est.excluded is None and est.category == "shoes"
+    # ...but "replica" still flags fakes for other brands.
+    assert model.estimate(make("Nike Air Max replica", 30, "Nike", size="43"), when=NOV).excluded == "fake keywords"
