@@ -28,7 +28,16 @@ For every new listing:
 5. **Market blend**: the bot stores every listing it sees in SQLite. Once it has
    at least 5 comparable listings (same brand and category, last 30 days), it
    blends their median asking price into the estimate.
-6. **Decision**: `profit = resale − (price incl. buyer fee + shipping)`. You get
+6. **Demand (likes over time)**: every sweep re-checks items it has already
+   seen and records their likes and views. Because the bot polls every ~20 s,
+   the first time it sees an item is effectively when it was uploaded, so it
+   knows "♥ 6 in 12 min (30/h)". It also learns the usual likes/hour for each
+   brand and type, and says "3.1× usual for this brand/type". An item is **hot**
+   at 10+ likes/hour, or at 2× the usual rate. Hot items get high priority and
+   may pass with a lower margin (−25 points of margin, −25% of minimum profit),
+   because they resell fast. An item that wasn't a deal when listed but heats
+   up later gets a "Demand picked up" alert.
+7. **Decision**: `profit = resale − (price incl. buyer fee + shipping)`. You get
    an alert when profit ≥ €20, margin ≥ 60%, confidence ≥ 0.6 and the listing
    is less than 90 minutes old. It's marked **high priority** when profit is
    €50 or more, margin is 200% or more, or the listing is collecting likes fast.
@@ -102,7 +111,9 @@ to be blocked than a datacenter IP.
   `python -m botvin probe` and update `vinted.py`.
 - The new API no longer says when an item was listed, so "fresh" means "new
   since the bot started watching". The first sweep after starting only records
-  what's already up. Automated access is against Vinted's terms, so keep request rates
+  what's already up, and those items get no likes/hour rate.
+- Likes are re-measured only while an item is still on the first page of a
+  feed. Narrow feeds (one brand, a price cap) keep items visible for longer. Automated access is against Vinted's terms, so keep request rates
   modest and use the bot at your own risk.
 - If you get HTTP 403s, make sure `curl_cffi` is installed (it mimics a real
   Chrome browser), slow down, or run from a residential IP.

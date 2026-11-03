@@ -14,14 +14,18 @@ from .scorer import Verdict
 log = logging.getLogger(__name__)
 
 
-def format_message(item: Item, est: Estimate, v: Verdict) -> tuple[str, str]:
-    title = f"+{v.profit:.0f}€  {est.brand or item.brand} {est.category} · {item.total_price:.2f}€"
-    age = f"{item.age_minutes:.0f} min ago" if item.age_minutes is not None else "age ?"
+def format_message(item: Item, est: Estimate, v: Verdict,
+                   heating_up: bool = False) -> tuple[str, str]:
+    prefix = "🔥 " if v.demand.level == "hot" else ""
+    title = f"{prefix}+{v.profit:.0f}€  {est.brand or item.brand} {est.category} · {item.total_price:.2f}€"
     lines = [
         item.title,
         f"Buy {item.total_price:.2f}€ → resell ~{est.resale:.0f}€  (margin {v.margin:.0%})",
-        f"Size {item.size or '?'} · {item.condition.replace('_', ' ')} · {age} · ♥ {item.favourites}",
+        f"Size {item.size or '?'} · {item.condition.replace('_', ' ')}",
+        v.demand.describe(),
     ]
+    if heating_up:
+        lines.insert(0, "Demand picked up since it was listed:")
     if est.market_samples:
         lines.append(f"Market: median {est.market_median:.0f}€ over {est.market_samples} listings")
     if est.flags:
@@ -34,8 +38,8 @@ class Notifier:
         self.ntfy = cfg.get("ntfy") or {}
         self.telegram = cfg.get("telegram") or {}
 
-    def send(self, item: Item, est: Estimate, v: Verdict) -> None:
-        title, body = format_message(item, est, v)
+    def send(self, item: Item, est: Estimate, v: Verdict, heating_up: bool = False) -> None:
+        title, body = format_message(item, est, v, heating_up)
         log.info("DEAL %s\n%s\n%s", title, body, item.url)
         if self.ntfy.get("topic"):
             self._ntfy(title, body, item, v)

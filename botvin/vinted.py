@@ -207,6 +207,11 @@ class VintedClient:
                 items = data.get("items") or []
                 sample = items[0] if items else {}
                 out.append(f"{label}: OK, {len(items)} items; first item keys: {sorted(sample)[:25]}")
+                for raw in items[:3]:
+                    it = Item.from_api(raw, self.base)
+                    out.append(f"   item_box={raw.get('item_box')!r}")
+                    out.append(f"   -> title={it.title!r} brand={it.brand!r} size={it.size!r} "
+                               f"condition={it.condition} total={it.total_price} likes={it.favourites}")
             except VintedError as e:
                 out.append(f"{label}: {e}")
         return out

@@ -18,6 +18,67 @@ class Thresholds:
     resell_cost: float = 0.0          # e.g. packaging; Vinted sellers pay no fee
     max_age_minutes: float = 90.0     # ignore listings older than this
     high_priority_profit: float = 50.0
+    # Demand (likes per hour since the bot first saw the item):
+    hot_likes_per_hour: float = 10.0
+    warm_likes_per_hour: float = 3.0
+    min_watch_minutes: float = 3.0    # need this long before a rate means anything
+    hot_margin_relief: float = 0.25   # hot items may have this much lower margin
+    hot_profit_relief: float = 0.25   # ...and this fraction lower min profit
+
+
+@dataclass
+class Demand:
+    likes: int = 0
+    views: int = 0
+    minutes: float | None = None      # how long we've watched it (None = unknown age)
+    likes_per_hour: float | None = None
+    views_per_hour: float | None = None
+    category_likes_per_hour: float | None = None   # median for same brand+category
+    category_samples: int = 0
+    level: str = "unknown"            # hot | warm | normal | unknown
+
+    @property
+    def relative(self) -> float | None:
+        """How much more liked than comparable items (2.0 = twice as many likes/h)."""
+        if self.likes_per_hour is None or not self.category_likes_per_hour:
+            return None
+        return self.likes_per_hour / self.category_likes_per_hour
+
+    def describe(self) -> str:
+        if self.minutes is None:
+            return f"♥ {self.likes} · 👁 {self.views}"
+        parts = [f"♥ {self.likes} in {self.minutes:.0f} min"]
+        if self.likes_per_hour is not None:
+            parts[0] += f" ({self.likes_per_hour:.0f}/h)"
+        parts.append(f"👁 {self.views}")
+        if self.relative is not None and self.category_samples >= 5:
+            parts.append(f"{self.relative:.1f}× usual for this brand/type")
+        if self.level in ("hot", "warm"):
+            parts.append("🔥 HOT" if self.level == "hot" else "warm")
+        return " · ".join(parts)
+
+
+def measure_demand(likes: int, views: int, minutes: float | None, t: "Thresholds",
+                   category_rate: float | None = None, category_samples: int = 0) -> Demand:
+    d = Demand(likes=likes, views=views, minutes=minutes,
+               category_likes_per_hour=category_rate, category_samples=category_samples)
+    if minutes is None:
+        return d
+    # Floor the window so 1 like in the first 20 seconds isn't "180 likes/hour".
+    hours = max(minutes, t.min_watch_minutes) / 60
+    d.likes_per_hour = likes / hours
+    d.views_per_hour = views / hours
+    hot = d.likes_per_hour >= t.hot_likes_per_hour
+    # Twice as liked as comparable items, with a meaningful baseline, also counts.
+    if d.relative is not None and category_samples >= 5 and d.relative >= 2 and likes >= 3:
+        hot = True
+    if hot and likes >= 2:
+        d.level = "hot"
+    elif d.likes_per_hour >= t.warm_likes_per_hour and likes >= 1:
+        d.level = "warm"
+    else:
+        d.level = "normal"
+    return d
 
 
 @dataclass
@@ -27,16 +88,25 @@ class Verdict:
     margin: float
     priority: str                     # "high" | "normal" | "low"
     reasons: list[str] = field(default_factory=list)
-    hype: float = 0.0                 # favourites per hour since upload
+    hype: float = 0.0                 # favourites per hour since first seen
+    demand: Demand = field(default_factory=Demand)
 
 
-def evaluate(item: Item, est: Estimate, t: Thresholds) -> Verdict:
+def evaluate(item: Item, est: Estimate, t: Thresholds, demand: Demand | None = None) -> Verdict:
     cost = item.total_price + t.shipping_cost
     profit = est.resale - cost - t.resell_cost
     margin = profit / cost if cost > 0 else 0.0
 
     age = item.age_minutes
-    hype = (item.favourites / max(age, 5) * 60) if age is not None else 0.0
+    if demand is None:
+        demand = measure_demand(item.favourites, item.views, age, t)
+    hype = demand.likes_per_hour or 0.0
+
+    # Strong demand means it will resell fast, so accept a thinner margin.
+    min_profit, min_margin = t.min_profit, t.min_margin
+    if demand.level == "hot":
+        min_profit *= 1 - t.hot_profit_relief
+        min_margin -= t.hot_margin_relief
 
     reasons: list[str] = []
     ok = True
@@ -45,19 +115,20 @@ def evaluate(item: Item, est: Estimate, t: Thresholds) -> Verdict:
     else:
         if item.total_price > t.max_price:
             ok = False; reasons.append(f"price {item.total_price:.0f} > max {t.max_price:.0f}")
-        if profit < t.min_profit:
-            ok = False; reasons.append(f"profit {profit:.0f} < {t.min_profit:.0f}")
-        if margin < t.min_margin:
-            ok = False; reasons.append(f"margin {margin:.0%} < {t.min_margin:.0%}")
+        if profit < min_profit:
+            ok = False; reasons.append(f"profit {profit:.0f} < {min_profit:.0f}")
+        if margin < min_margin:
+            ok = False; reasons.append(f"margin {margin:.0%} < {min_margin:.0%}")
         if est.confidence < t.min_confidence:
             ok = False; reasons.append(f"confidence {est.confidence:.2f} < {t.min_confidence:.2f}")
-        if age is not None and age > t.max_age_minutes:
-            ok = False; reasons.append(f"listed {age:.0f} min ago")
+        known_age = age if age is not None else demand.minutes
+        if known_age is not None and known_age > t.max_age_minutes:
+            ok = False; reasons.append(f"listed {known_age:.0f} min ago")
 
-    if profit >= t.high_priority_profit or margin >= 2.0 or hype >= 6:
+    if profit >= t.high_priority_profit or margin >= 2.0 or demand.level == "hot":
         priority = "high"
     elif ok:
         priority = "normal"
     else:
         priority = "low"
-    return Verdict(ok, round(profit, 2), round(margin, 3), priority, reasons, round(hype, 1))
+    return Verdict(ok, round(profit, 2), round(margin, 3), priority, reasons, round(hype, 1), demand)

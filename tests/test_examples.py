@@ -103,8 +103,8 @@ class FakeClient:
 class FakeNotifier:
     def __init__(self):
         self.sent = []
-    def send(self, item, est, v):
-        self.sent.append(item.id)
+    def send(self, item, est, v, heating_up=False):
+        self.sent.append((item.id, heating_up))
 
 
 def test_bot_alerts_only_on_new_items_after_first_sweep(tmp_path, monkeypatch):
@@ -121,7 +121,7 @@ def test_bot_alerts_only_on_new_items_after_first_sweep(tmp_path, monkeypatch):
     assert notifier.sent == []
     bot.poll_feed({"name": "t"})           # new item appears
     bot.poll_feed({"name": "t"})           # nothing new
-    assert notifier.sent == [2]
+    assert notifier.sent == [(2, False)]
 
 
 def test_new_api_params_use_attribute_ids_and_drop_blanks():
@@ -139,3 +139,50 @@ def test_item_box_fallback():
                         "item_box": {"first_line": "Columbia", "second_line": "L · Gera"}})
     assert (it.brand, it.size, it.condition) == ("Columbia", "L", "good")
     assert it.url == "https://www.vinted.lt/items/5-kurtka" and it.uploaded_at is None
+
+
+def test_demand_levels():
+    from botvin.scorer import measure_demand
+    t = Thresholds()
+    assert measure_demand(5, 60, 10, t).level == "hot"        # 30 likes/h
+    assert measure_demand(1, 10, 15, t).level == "warm"       # 4 likes/h
+    assert measure_demand(0, 5, 20, t).level == "normal"
+    assert measure_demand(3, 10, None, t).level == "unknown"  # age unknown
+    # 1 like within 20 s must not count as 180/h
+    assert measure_demand(1, 2, 0.3, t).likes_per_hour == 20
+    assert measure_demand(1, 2, 0.3, t).level == "warm"
+    # relative to category: 6/h when comparable items get 2/h -> hot
+    assert measure_demand(3, 30, 30, t, category_rate=2.0, category_samples=8).level == "hot"
+
+
+def test_hot_demand_relaxes_margin():
+    from botvin.scorer import measure_demand
+    item = make("Kurtka Columbia", 28.0, "Columbia")      # ~45 resale, profit ~13.5
+    est = model.estimate(item, when=NOV)
+    t = Thresholds(min_profit=15)
+    assert not evaluate(item, est, t, measure_demand(0, 5, 10, t)).is_deal
+    v = evaluate(item, est, t, measure_demand(6, 80, 10, t))
+    assert v.is_deal and v.priority == "high"
+
+
+def test_bot_alerts_when_existing_item_heats_up(tmp_path, monkeypatch):
+    import botvin.pricing as p
+    monkeypatch.setattr(p.PriceModel, "season_mult", lambda self, c, w=None: 1.25)
+    # Profit ~13.5: not a deal at min_profit 15 with no likes, a deal once hot.
+    cold = make("Kurtka Columbia", 28.0, "Columbia", id_=7, fav=0)
+    cold.uploaded_at = None
+    hot = make("Kurtka Columbia", 28.0, "Columbia", id_=7, fav=6)
+    hot.uploaded_at = None
+    client = FakeClient([[], [cold], [hot], [hot]])
+    notifier = FakeNotifier()
+    store = Store(tmp_path / "t.db")
+    bot = Bot({"feeds": [{"name": "t"}], "thresholds": {"min_profit": 15}}, client=client,
+              store=store, notifier=notifier, model=PriceModel())
+    bot.run(once=True)
+    bot.poll_feed({"name": "t"})
+    assert notifier.sent == []
+    # pretend 10 minutes passed since first sighting
+    store.db.execute("UPDATE tracking SET first_seen = first_seen - 600 WHERE id=7")
+    bot.poll_feed({"name": "t"})
+    bot.poll_feed({"name": "t"})
+    assert notifier.sent == [(7, True)]
