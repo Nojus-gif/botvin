@@ -311,7 +311,7 @@ class PageClient(FakeClient):
         super().__init__(batches)
         self.pages = pages
     found = {}
-    def find_item(self, item_id, title):
+    def find_item(self, item_id, title, price=None):
         return self.found.get(item_id)
     def item_page(self, url):
         item_id = int(url.rsplit("/", 1)[1])
@@ -383,6 +383,7 @@ def test_watchlist_low_demand_never_alerts_and_sold_is_recorded(tmp_path, monkey
     bot = _watch_bot(tmp_path, PageClient([[], [item]], pages), notifier)
     bot.run(once=True)
     bot.poll_feed({"name": "t"})
+    bot.client.found = {13: make("Kurtka Columbia", 28.0, "Columbia", id_=13, fav=2)}   # still listed
     _age(bot.store, 13, 30)
     bot.check_watchlist()
     assert notifier.sent == []
@@ -555,3 +556,95 @@ def test_upload_time_phrases(text, minutes):
     now = 1_800_000_000.0
     r = parse_relative(text, now)
     assert (None if r is None else round((now - r) / 60)) == minutes
+
+
+def test_review_marks_sold_unsold_and_gone(tmp_path, monkeypatch):
+    import botvin.pricing as p
+    from botvin.vinted import VintedError
+    monkeypatch.setattr(p.PriceModel, "season_mult", lambda self, c, w=None, b=None: 1.25)
+    a = make("Kurtka Columbia", 15.13, "Columbia", id_=41)       # still listed
+    b = make("Kurtka Columbia zimowa", 15.13, "Columbia", id_=42)  # gone from search -> sold
+    c = make("Patagonia jacket", 20, "Patagonia", id_=43)         # page errors ("Įvyko klaida") -> sold
+    for it in (a, b, c):
+        it.uploaded_at = None
+
+    class C(PageClient):
+        last_status = 200
+        def item_page(self, url):
+            if url.endswith("/43"):
+                self.last_status = 404
+                raise VintedError("404")
+            return super().item_page(url)
+    client = C([[], [a, b, c]], {})
+    client.found = {41: make("Kurtka Columbia", 15.13, "Columbia", id_=41, fav=4)}
+    bot = _watch_bot(tmp_path, client, FakeNotifier())
+    bot.reviews_per_sweep = 10
+    bot.run(once=True)
+    bot.poll_feed({"name": "t"})
+    assert bot.review_outcomes() == 0                             # not 2 h old yet
+    bot.store.db.execute("UPDATE tracking SET first_seen = first_seen - 7300")
+    assert bot.review_outcomes() == 3
+    st = dict(bot.store.db.execute("SELECT id, status FROM outcomes").fetchall())
+    assert st == {41: "unsold", 42: "sold", 43: "sold"}
+    how = dict(bot.store.db.execute("SELECT id, sold_how FROM outcomes").fetchall())
+    assert how[43] == "page error + not in search" and how[42] == "not in search"
+    assert bot.review_outcomes() == 0                             # each item reviewed once
+
+
+def _fill_outcomes(store, brand, category, sold, unsold, gender=None, size="l"):
+    import itertools
+    ids = itertools.count(store.db.execute("SELECT COALESCE(MAX(id),0) FROM outcomes").fetchone()[0] + 1)
+    for status, n in (("sold", sold), ("unsold", unsold)):
+        for _ in range(n):
+            store.record_outcome(next(ids), status=status, sold_how=None, sold_minutes=20,
+                                 alerted=1, brand=brand, category=category, gender=gender,
+                                 size_letter=size, colour=None, price=20, resale=60, profit=36,
+                                 margin=1.5, margin_band="100-200%", demand_level="normal",
+                                 likes=5, title="x", url="u")
+
+
+def test_learning_boosts_fast_sellers_and_damps_slow_ones(tmp_path):
+    from botvin import learning
+    store = Store(tmp_path / "l.db")
+    assert learning.adjust(store, "Carhartt", "jacket", None, "m", 2).factor == 1.0   # no data yet
+    _fill_outcomes(store, "Carhartt", "jacket", sold=9, unsold=1)
+    _fill_outcomes(store, "Columbia", "fleece", sold=1, unsold=9)
+    fast = learning.adjust(store, "Carhartt", "jacket", None, "m", 2)
+    slow = learning.adjust(store, "Columbia", "fleece", None, "m", 2)
+    assert fast.factor > 1.1 and fast.fast and "Carhartt jacket 9/10 sold" in fast.note
+    assert slow.factor < 0.9 and not slow.fast
+    rep = learning.report(store, 2)
+    assert "Carhartt jacket" in rep and "90%" in rep
+
+
+def test_bot_applies_learning_to_alerts(tmp_path, monkeypatch):
+    import botvin.pricing as p
+    monkeypatch.setattr(p.PriceModel, "season_mult", lambda self, c, w=None, b=None: 1.25)
+    bot = _watch_bot(tmp_path, FakeClient([]), FakeNotifier())
+    _fill_outcomes(bot.store, "Columbia", "jacket", sold=1, unsold=11)
+    _fill_outcomes(bot.store, "Patagonia", "jacket", sold=10, unsold=2)
+    col = make("Kurtka Columbia", 15.13, "Columbia")
+    est = bot._estimate(col, (None, 0))
+    assert est.learned_factor < 1 and any("learned: Columbia jacket 1/12" in f for f in est.flags)
+    pat = make("Patagonia jacket", 40, "Patagonia")
+    est = bot._estimate(pat, (None, 0))
+    assert est.fast_seller and evaluate(pat, est, bot.t).priority == "high"
+
+
+def test_watchlist_detects_sale_when_page_errors_and_search_misses(tmp_path, monkeypatch):
+    import botvin.pricing as p
+    from botvin.vinted import VintedError
+    monkeypatch.setattr(p.PriceModel, "season_mult", lambda self, c, w=None, b=None: 1.25)
+    item = make("Stüssy Milano Hoodie", 16.45, "Stüssy", id_=51, size="L")
+    item.uploaded_at = None
+
+    class C(PageClient):
+        def item_page(self, url):
+            raise VintedError("item page -> HTTP 500")          # "Įvyko klaida"
+    bot = _watch_bot(tmp_path, C([[], [item]], {}), FakeNotifier())
+    bot.run(once=True)
+    bot.poll_feed({"name": "t"})
+    _age(bot.store, 51, 5)
+    bot.check_watchlist()
+    row = bot.store.tracking(51)
+    assert row["sold_at"] is not None and row["next_check"] is None

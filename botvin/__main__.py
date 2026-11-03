@@ -61,6 +61,7 @@ def main(argv: list[str] | None = None) -> None:
     sub.add_parser("once")
     sub.add_parser("test-notify")
     sub.add_parser("probe", help="check that the bot can reach Vinted's search")
+    sub.add_parser("report", help="what sold and what didn't: the bot's learned demand")
     pg = sub.add_parser("page", help="show the upload time the bot reads from an item page")
     pg.add_argument("url")
     pg.add_argument("--debug", action="store_true", help="show where likes/views/sold appear in the page")
@@ -99,6 +100,13 @@ def main(argv: list[str] | None = None) -> None:
     cfg = load_config(args.config)
     from .bot import Bot  # imported late so `check` works without network deps
     from .notify import Notifier
+
+    if args.cmd == "report":
+        from . import learning
+        from .storage import Store
+        print(learning.report(Store(cfg.get("database", "botvin.db")),
+                              float(cfg.get("review_after_hours", 2))))
+        return
 
     if args.cmd == "probe":
         from .vinted import VintedClient

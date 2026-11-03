@@ -76,6 +76,13 @@ feeds:
     search_text: stone island
     price_to: 120
 
+# Learning: ~2 h after listing, every promising item is checked again (sold or
+# still listed?). What sells fast gets boosted, what doesn't gets damped.
+# See it with: python -m botvin report
+review_after_hours: 2
+reviews_per_sweep: 1
+learn_from_outcomes: true
+
 # Brands marked feed_price_to in botvin/data/brands.yaml (UGG, Carhartt) get
 # their own search automatically. Set to false to turn that off.
 auto_brand_feeds: true

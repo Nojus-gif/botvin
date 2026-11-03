@@ -54,7 +54,15 @@ For every new listing:
      but turns hot gets a "Demand picked up" alert.
    - **Learning**: the bot records how fast watched items sell, and alerts
      show "7/10 similar sold within 1 h" per brand and type.
-7. **Decision**: `profit = resale − (price incl. buyer fee + shipping)`. You get
+7. **Learning from what sold**: about 2 hours after listing, every promising
+   item and every alert is checked once more. It counts as sold if the page
+   says "Parduotas", or if the page no longer opens and search can't find it
+   either. Outcomes are grouped by brand + type, brand, type, gender + size,
+   estimated margin and demand level. Once there's enough data (10 outcomes
+   overall, 3 in a group), estimates are adjusted ×0.7–×1.3 by how often that
+   kind of item really sold, and kinds that sell ≥70% of the time get top
+   priority. `python -m botvin report` shows what it has learned.
+8. **Decision**: `profit = resale − (price incl. buyer fee + shipping)`. You get
    an alert when profit ≥ €20, margin ≥ 60%, confidence ≥ 0.6 and the listing
    is less than 90 minutes old. It's marked **high priority** when profit is
    €50 or more, margin is 200% or more, or the listing is collecting likes fast.

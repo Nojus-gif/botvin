@@ -38,6 +38,18 @@ CREATE TABLE IF NOT EXISTS tracking (
     description TEXT                          -- NULL = item page not fetched yet
 );
 CREATE INDEX IF NOT EXISTS tracking_bc ON tracking(brand, category, first_seen);
+-- What happened to promising items ~2 h after listing (learning.py).
+CREATE TABLE IF NOT EXISTS outcomes (
+    id INTEGER PRIMARY KEY,
+    reviewed_at REAL NOT NULL,
+    status TEXT NOT NULL,          -- sold | unsold
+    sold_how TEXT,                 -- page | watch | not in search | page error + not in search
+    sold_minutes REAL,             -- when known (caught by a watchlist check)
+    alerted INTEGER,
+    brand TEXT, category TEXT, gender TEXT, size_letter TEXT, colour TEXT,
+    price REAL, resale REAL, profit REAL, margin REAL, margin_band TEXT,
+    demand_level TEXT, likes INTEGER, title TEXT, url TEXT
+);
 CREATE TABLE IF NOT EXISTS alerts (
     id INTEGER PRIMARY KEY,
     sent_at REAL NOT NULL,
@@ -59,6 +71,7 @@ EXTRA_TRACKING_COLUMNS = [
     ("followup", "INTEGER DEFAULT 0"),  # 1 = "demand confirmed" already sent
     ("gender", "TEXT"),                 # from the item page
     ("colour", "TEXT"),
+    ("reviewed", "INTEGER DEFAULT 0"),  # 1 = outcome recorded
 ]
 
 
@@ -185,6 +198,50 @@ class Store:
             elif (last - start) / 60 >= within_minutes:
                 watched += 1
         return sold, watched
+
+    # -------------------------------------------------------------- outcomes
+    def due_reviews(self, now: float, after_seconds: float, limit: int) -> list[dict]:
+        cur = self.db.execute(
+            "SELECT * FROM tracking WHERE item_json IS NOT NULL AND COALESCE(reviewed,0)=0"
+            " AND COALESCE(uploaded_at, first_seen) <= ? ORDER BY first_seen LIMIT ?",
+            (now - after_seconds, limit))
+        names = [c[0] for c in cur.description]
+        return [dict(zip(names, r)) for r in cur.fetchall()]
+
+    def record_outcome(self, item_id: int, **fields) -> None:
+        cols = ["id", "reviewed_at"] + list(fields)
+        self.db.execute(
+            f"INSERT OR REPLACE INTO outcomes ({', '.join(cols)}) VALUES ({', '.join('?' * len(cols))})",
+            [item_id, time.time(), *fields.values()])
+        self.db.execute("UPDATE tracking SET reviewed=1 WHERE id=?", (item_id,))
+        self.db.commit()
+
+    def mark_reviewed(self, item_id: int) -> None:
+        self.db.execute("UPDATE tracking SET reviewed=1 WHERE id=?", (item_id,))
+        self.db.commit()
+
+    def outcome_counts(self, where: dict, status: str | None = None) -> tuple[int, int]:
+        """(sold, sold+unsold) matching `where`; with status=..., (n, n) of that status."""
+        clauses = [f"{k}=?" for k in where]
+        args = list(where.values())
+        if status:
+            clauses.append("status=?"); args.append(status)
+            n = self.db.execute(f"SELECT COUNT(*) FROM outcomes WHERE {' AND '.join(clauses)}",
+                                args).fetchone()[0]
+            return n, n
+        clauses.append("status IN ('sold','unsold')")
+        row = self.db.execute(
+            f"SELECT SUM(status='sold'), COUNT(*) FROM outcomes WHERE {' AND '.join(clauses)}",
+            args).fetchone()
+        return int(row[0] or 0), int(row[1] or 0)
+
+    def outcome_breakdown(self, column_expr: str) -> list[tuple]:
+        """[(key, sold, total, avg sold_minutes)] grouped by a column expression
+        (fixed strings from learning.report, never user input)."""
+        return self.db.execute(
+            f"SELECT {column_expr} AS k, SUM(status='sold'), COUNT(*),"
+            " AVG(CASE WHEN status='sold' THEN sold_minutes END)"
+            " FROM outcomes WHERE status IN ('sold','unsold') GROUP BY k").fetchall()
 
     def record_alert(self, item, resale: float, profit: float) -> None:
         self.db.execute(

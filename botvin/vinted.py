@@ -178,15 +178,22 @@ class VintedClient:
                 log.debug("skipping unparsable item: %s", e)
         return items
 
-    def find_item(self, item_id: int, title: str) -> Item | None:
+    def find_item(self, item_id: int, title: str, price: float | None = None) -> Item | None:
         """Look one item up through search (which, unlike the item page, reliably
-        carries favourite_count / view_count): search its title, match the id."""
+        carries favourite_count / view_count): search its title, match the id.
+        Sold items drop out of search, so None also hints that it sold.
+        A tight price window makes the match reliable even for generic titles."""
         text = " ".join((title or "").split()[:10])[:80]
         if not text:
             return None
-        for order in ("relevance", "newest_first"):
+        attempts = []
+        if price:
+            attempts.append({"order": "relevance", "price_from": max(0, round(price - 1, 2)),
+                             "price_to": round(price + 1, 2)})
+        attempts += [{"order": "relevance"}, {"order": "newest_first"}]
+        for kw in attempts:
             try:
-                for it in self.search(text, order=order, per_page=40):
+                for it in self.search(text, per_page=40, **kw):
                     if it.id == item_id:
                         return it
             except VintedError as e:

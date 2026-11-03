@@ -7,9 +7,10 @@ import logging
 import random
 import time
 
+from . import learning
 from .models import Item
 from .notify import Notifier
-from .pricing import PriceModel
+from .pricing import PriceModel, letter_size
 from .scorer import Thresholds, Verdict, evaluate, measure_demand
 from .storage import Store
 from .vinted import VintedClient, VintedError
@@ -49,6 +50,10 @@ class Bot:
         # Page re-checks slow down the sweep; a couple per sweep keeps up with
         # the schedule without delaying new listings much.
         self.checks_per_sweep = int(cfg.get("watch_checks_per_sweep", 2))
+        # Review promising items this long after listing: sold or not?
+        self.review_hours = float(cfg.get("review_after_hours", 2))
+        self.reviews_per_sweep = int(cfg.get("reviews_per_sweep", 1))
+        self.learn = bool(cfg.get("learn_from_outcomes", True))
 
     def _brand_feeds(self) -> list[dict]:
         """A dedicated search for each brand marked `feed_price_to` in
@@ -88,7 +93,7 @@ class Bot:
 
         market = self.store.market(brand, category) if brand else (None, 0)
         demand = self._demand(item, track, brand, category)
-        est = self.model.estimate(item, market)
+        est = self._estimate(item, market)
         v = evaluate(item, est, self.t, demand)
 
         # Open the item page only for promising items (one extra request each):
@@ -111,7 +116,7 @@ class Bot:
                 item.uploaded_at = page["uploaded_at"]
             track = self.store.tracking(item.id)
             demand = self._demand(item, track, brand, category)
-            est = self.model.estimate(item, market)
+            est = self._estimate(item, market)
             v = evaluate(item, est, self.t, demand)
 
         if is_new:
@@ -127,6 +132,71 @@ class Bot:
             log.debug("skip %s [%s/%s] %.2f€ est %.0f: %s", item.title, est.brand,
                       est.category, item.total_price, est.resale, "; ".join(v.reasons))
         return v if is_new else None
+
+    def _estimate(self, item: Item, market):
+        """Price model estimate, adjusted by what similar items actually did."""
+        est = self.model.estimate(item, market)
+        if not self.learn or est.excluded or not est.brand:
+            return est
+        got = learning.adjust(self.store, est.brand, est.category, est.gender,
+                              letter_size(item.size), self.review_hours)
+        if got.total:
+            est.resale = round(est.resale * got.factor, 2)
+            est.learned_factor = got.factor
+            est.fast_seller = got.fast
+            est.flags.append(got.note)
+        return est
+
+    # -------------------------------------------------------------- outcomes
+    def review_outcomes(self, now: float | None = None) -> int:
+        """~2 h after listing, check whether each promising item sold."""
+        now = now or time.time()
+        done = 0
+        for row in self.store.due_reviews(now, self.review_hours * 3600, self.reviews_per_sweep):
+            item = Item(**json.loads(row["item_json"]))
+            # After a sale Vinted either shows "Parduotas" or the page stops
+            # opening altogether ("Įvyko klaida"). Either way it's gone from search.
+            try:
+                page = self.client.item_page(item.url)
+            except VintedError:
+                page = {"error": True}
+            status, how = "unsold", None
+            likes = row["fav_last"]
+            if page.get("sold") or row.get("sold_at"):
+                status, how = "sold", "watch" if row.get("sold_at") else "page"
+            else:
+                found = self.client.find_item(item.id, item.title, item.price)
+                if found:
+                    likes = max(likes, found.favourites)
+                elif page.get("error"):
+                    status, how = "sold", "page error + not in search"
+                else:
+                    status, how = "sold", "not in search"
+            start = row.get("uploaded_at") or row["first_seen"]
+            sold_minutes = (row["sold_at"] - start) / 60 if row.get("sold_at") else None
+
+            item.favourites = likes
+            item.description = row.get("description") or ""
+            est = self.model.estimate(item)
+            cost = item.total_price + self.t.shipping_cost
+            profit = est.resale - cost
+            margin = profit / cost if cost else 0
+            watched_min = max((row["last_seen"] - start) / 60, 1)
+            level = measure_demand(likes, 0, watched_min if not row["from_startup"] or row.get("uploaded_at")
+                                   else None, self.t).level
+            self.store.record_outcome(
+                item.id, status=status, sold_how=how, sold_minutes=sold_minutes,
+                alerted=int(self.store.was_alerted(item.id)), brand=row["brand"],
+                category=row["category"], gender=est.gender, size_letter=letter_size(item.size),
+                colour=row.get("colour"), price=item.total_price, resale=est.resale,
+                profit=round(profit, 2), margin=round(margin, 3),
+                margin_band=learning.margin_band(margin), demand_level=level, likes=likes,
+                title=item.title, url=item.url)
+            log.info("review %-6s %-40.40s %s %s/%s %.0f€ ♥%d", status.upper(), item.title,
+                     row["brand"], row["category"], letter_size(item.size) or item.size,
+                     item.total_price, likes)
+            done += 1
+        return done
 
     # ------------------------------------------------------------ watchlist
     @staticmethod
@@ -167,10 +237,13 @@ class Bot:
             sold = bool(page.get("sold"))
             likes, views = page.get("likes"), page.get("views")
             if likes is None and not sold:
-                # The item page doesn't show counts; search results do.
-                found = self.client.find_item(item.id, item.title)
+                # The item page doesn't show counts; search results do. Sold
+                # items vanish from search (and their page often errors).
+                found = self.client.find_item(item.id, item.title, item.price)
                 if found:
                     likes, views = found.favourites, found.views
+                else:
+                    sold = True
             self.store.update_check(item.id, likes=likes, views=views,
                                     sold=sold, next_check=None if sold else self._next_check(start, now),
                                     now=now)
@@ -190,7 +263,7 @@ class Bot:
         brand, category = track["brand"], track["category"]
         market = self.store.market(brand, category) if brand else (None, 0)
         demand = self._demand(item, track, brand, category)
-        est = self.model.estimate(item, market)
+        est = self._estimate(item, market)
         v = evaluate(item, est, self.t, demand)
         log.info("watch %-40.40s ♥%-3d %5.1f/h %-6s %s", item.title, demand.likes,
                  demand.likes_per_hour or 0, demand.level, "DEAL" if v.is_deal else "; ".join(v.reasons))
@@ -265,6 +338,10 @@ class Bot:
                 self.check_watchlist()
             except VintedError as e:
                 log.error("watchlist failed: %s", e)
+            try:
+                self.review_outcomes()
+            except VintedError as e:
+                log.error("outcome review failed: %s", e)
             first = False
             log.info("sweep took %.0fs (each search re-checked every ~%.0fs)",
                      time.time() - started, time.time() - started + interval)

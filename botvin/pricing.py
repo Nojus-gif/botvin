@@ -154,6 +154,9 @@ class Estimate:
     min_profit: float | None = None   # brand-specific stricter thresholds
     min_margin: float | None = None
     instant: bool = False             # brand sells within minutes
+    gender: str | None = None         # women / men, if known
+    fast_seller: bool = False         # learned: this kind of item sells within the review window
+    learned_factor: float = 1.0
 
 
 class PriceModel:
@@ -356,4 +359,4 @@ class PriceModel:
         return Estimate(brand, category, round(resale, 2), round(baseline, 2), median, n,
                         min(confidence, 1.0), flags,
                         min_profit=info.get("min_profit"), min_margin=info.get("min_margin"),
-                        instant=bool(info.get("instant")))
+                        instant=bool(info.get("instant")), gender=gender)

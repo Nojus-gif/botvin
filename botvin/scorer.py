@@ -55,6 +55,8 @@ class Demand:
     def describe(self) -> str:
         if self.minutes is None:
             return f"♥ {self.likes}" + (f" · 👁 {self.views}" if self.views else "")
+        if self.minutes < 1:
+            return f"♥ {self.likes} · just listed"
         parts = [f"♥ {self.likes} in {self.minutes:.0f} min"]
         if self.likes_per_hour is not None:
             parts[0] += f" ({self.likes_per_hour:.0f}/h)"
@@ -121,7 +123,7 @@ def evaluate(item: Item, est: Estimate, t: Thresholds, demand: Demand | None = N
     min_profit = max(t.min_profit, est.min_profit or 0)
     min_margin = max(t.min_margin, est.min_margin or 0)
     # ...and so do brands that are known to sell within a minute.
-    if demand.level == "hot" or est.instant:
+    if demand.level == "hot" or est.instant or est.fast_seller:
         min_profit *= 1 - t.hot_profit_relief
         min_margin -= t.hot_margin_relief
 
@@ -145,7 +147,8 @@ def evaluate(item: Item, est: Estimate, t: Thresholds, demand: Demand | None = N
         if known_age is not None and known_age > t.max_age_minutes:
             ok = False; reasons.append(f"listed {known_age:.0f} min ago")
 
-    if profit >= t.high_priority_profit or margin >= 2.0 or demand.level == "hot" or est.instant:
+    if (profit >= t.high_priority_profit or margin >= 2.0 or demand.level == "hot"
+            or est.instant or est.fast_seller):
         priority = "high"
     elif ok:
         priority = "normal"
