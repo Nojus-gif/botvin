@@ -10,6 +10,8 @@
 #   feed_price_to: N         the bot adds its own search for this brand (<= N EUR)
 #   season: winter|summer    overrides the category's season curve
 #   default_category: shoes  type to assume when the title names none
+#   skip_categories: [...]   never alert on these types for this brand
+#   colours_for: [shoes]     the colours table only applies to these type groups
 #
 # `base` = what a used item in "very good" condition from this brand typically
 # RESELLS for on Vinted (EUR) when it is a regular jacket, at neutral season.
@@ -163,6 +165,7 @@ brands:
   "Salomon":
     aliases: ["salomon"]
     colours: {black: 1.1, grey: 1.05, beige: 1.05, olive: 1.05, brown: 1.05, white: 1.0, blue: 0.95, green: 1.0, red: 0.9, yellow: 0.9, orange: 0.95}
+    colours_for: [shoes]
     base: 60
     overrides: {shoes: 75, boots: 80}
   "Carhartt":
@@ -207,16 +210,21 @@ brands:
   "Dr. Martens":
     aliases: ["dr. martens", "dr martens", "docs martens"]
     colours: {black: 1.15, burgundy: 0.95, brown: 0.95, white: 0.85, red: 0.85, blue: 0.75, green: 0.8, pink: 0.8, yellow: 0.75}
+    colours_for: [shoes]
     base: 60
     overrides: {boots: 60, shoes: 55}
   "New Balance":
     aliases: ["new balance"]
     colours: {grey: 1.15, beige: 1.1, white: 1.05, black: 1.0, navy: 1.0, brown: 1.05, green: 0.95, red: 0.85, blue: 0.9, burgundy: 0.9}
+    colours_for: [shoes]
     base: 35
     overrides: {shoes: 55}
   "Nike":
     aliases: ["nike"]
     colours: {white: 1.1, black: 1.1, grey: 1.05, beige: 1.0, brown: 1.0, navy: 0.95, red: 0.9, burgundy: 0.9, green: 0.9, blue: 0.9, yellow: 0.85, orange: 0.85}
+    colours_for: [shoes]   # the table above is for sneakers; clothes use type defaults
+    # Nike puffers / winter coats: junk, low and unpredictable demand.
+    skip_categories: [puffer, coat]
     base: 35
     overrides: {shoes: 55, tshirt: 15}
   "Jordan":
@@ -225,6 +233,7 @@ brands:
     overrides: {shoes: 90}
   "Adidas":
     aliases: ["adidas"]
+    skip_categories: [puffer, coat]   # junk, low and unpredictable demand
     base: 30
     overrides: {shoes: 45, tshirt: 12}
     # Lots of cheap, unwanted Adidas on Vinted: only alert on really great deals.

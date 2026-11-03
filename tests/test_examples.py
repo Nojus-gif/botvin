@@ -719,3 +719,15 @@ def test_learning_by_brand_and_colour(tmp_path):
     got = learning.adjust(store, "Carhartt", "jacket", None, "m", 2, colour="black")
     assert "black Carhartt jacket 6/7" in got.note and got.factor > 1.05
     assert "burgundy Carhartt" in learning.report(store, 2)
+
+
+def test_nike_and_adidas_puffers_skipped():
+    for title, brand in (("Biała pikowana kurtka zimowa Nike", "Nike"),
+                         ("Nike balta dygsniuota žieminė striukė", "Nike"),
+                         ("Adidas puffer jacket", "Adidas"), ("Adidas kurtka puchowa", "Adidas")):
+        est = model.estimate(make(title, 15.13, brand, size="M"), when=NOV)
+        assert est.excluded and "skipped" in est.excluded, (title, est.category, est.excluded)
+    # Nike shoes still count, and sneaker colours don't leak into Nike clothes
+    assert model.estimate(make("Nike Air Max 90", 20, "Nike", size="43"), when=NOV).excluded is None
+    hoodie = make("Nike hoodie white", 20, "Nike", size="M")
+    assert not any("x1.10" in f for f in model.estimate(hoodie, when=NOV).flags)

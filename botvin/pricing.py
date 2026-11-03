@@ -317,6 +317,9 @@ class PriceModel:
 
         info = self.brands[brand]
         overrides = info.get("overrides") or {}
+        if category in (info.get("skip_categories") or []):
+            return Estimate(brand, category, 0, 0, None, 0, 0, [],
+                            excluded=f"{brand} {category}s are skipped (low demand)")
 
         premium_mult = 1.0
         # Model names only count in the TITLE: descriptions often mention other
@@ -353,9 +356,12 @@ class PriceModel:
         fam = fam or colours.family(item.title)
         colour_mult = 1.0
         if fam and not (fam in ("pink", "purple") and gender != "men"):
-            colour_mult = colours.demand(fam, category, info.get("colours"))
+            table = info.get("colours")
+            if table and info.get("colours_for") and colours.type_group(category) not in info["colours_for"]:
+                table = None                    # Nike's sneaker colours don't apply to its jackets
+            colour_mult = colours.demand(fam, category, table)
             if colour_mult < 0.97 or colour_mult > 1.03:
-                popular = colours.popular(category, info.get("colours"))
+                popular = colours.popular(category, table)
                 note = f"colour {fam} x{colour_mult:.2f}"
                 if colour_mult < 1 and popular:
                     note += f" (best sellers: {', '.join(popular)})"
