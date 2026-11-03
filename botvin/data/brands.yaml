@@ -242,12 +242,14 @@ brands:
   "UGG":
     aliases: ["ugg", "uggs"]
     default_category: shoes   # "UGG Tazz" with no shoe word is still shoes
-    colours: {brown: 1.15, beige: 1.1, black: 1.05, grey: 0.9, pink: 0.9, white: 0.85, blue: 0.8, red: 0.8, burgundy: 0.85}
-    base: 50
-    overrides: {shoes: 70, boots: 75}
+    colours: {brown: 1.05, beige: 1.05, black: 1.0, grey: 0.9, pink: 0.9, white: 0.85, blue: 0.8, red: 0.8, burgundy: 0.85}
+    base: 35
+    # Checked against the market (Nov 2026): good used Tazz 39 are listed at
+    # about 45-60 EUR and plenty don't sell at ~44 EUR. Lots of supply, so only
+    # genuinely cheap pairs go instantly -- no "instant" flag.
+    overrides: {shoes: 38, boots: 42}
     season: winter         # UGGs are winter shoes whatever the title says
-    instant: true          # sell within a minute
-    feed_price_to: 45
+    feed_price_to: 30
     # Cheaper brands often tagged as UGG; if the title names one, it isn't UGG.
     other_brands: ["emu", "bearpaw", "inuikii", "mou", "shepherd", "australia luxe", "ugg style"]
   "Timberland":
@@ -406,9 +408,9 @@ premium_keywords:
   "detroit": {mult: 1.4, category: jacket}
   "michigan": {mult: 1.4, category: jacket}
   "active jacket": {mult: 1.3, category: jacket}
-  "tazz": {mult: 1.3}
-  "ultra mini": {mult: 1.3}
-  "tasman": {mult: 1.3}
-  "platform": {mult: 1.15}
+  "tazz": {mult: 1.15}
+  "ultra mini": {mult: 1.15}
+  "tasman": {mult: 1.15}
+  "platform": {mult: 1.1}
   "ghost piece": {mult: 1.3}
   "maya": {mult: 1.2, category: puffer}

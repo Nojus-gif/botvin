@@ -460,11 +460,15 @@ def test_instant_brands_ugg_and_carhartt():
     ugg = make("Balti moteriški UGG batai ant storos platformos", 10.15, "UGG", size="39",
                status="Labai gera")
     est = model.estimate(ugg, when=NOV)
-    assert est.instant and est.resale >= 80, est
+    # UGG was re-priced to the real market (lots of supply): not "instant",
+    # but a pair for 10 EUR is still a clear deal.
+    assert not est.instant and 35 <= est.resale <= 60, est
     v = evaluate(ugg, est, Thresholds())
     assert v.is_deal and v.priority == "high"
+    det0 = make("Carhartt WIP Detroit Jacket", 51.19, "Carhartt", size="M", status="Labai gera")
+    est0 = model.estimate(det0, when=NOV)
     from botvin.notify import format_message
-    title, body = format_message(ugg, est, v)
+    title, body = format_message(det0, est0, evaluate(det0, est0, Thresholds()))
     assert title.startswith("⚡") and "sells within minutes" in body
 
     det = make("Carhartt WIP Detroit Jacket M", 51.19, "Carhartt", size="M", status="Labai gera")
@@ -477,7 +481,7 @@ def test_auto_feeds_for_instant_brands(tmp_path):
               store=Store(tmp_path / "f.db"), notifier=FakeNotifier(), model=PriceModel())
     texts = [f["search_text"] for f in bot.feeds]
     assert texts.count("Carhartt") == 1 and "carhartt" not in texts   # not duplicated
-    assert {"search_text": "ugg", "price_to": 45, "name": "auto-ugg"} in bot.feeds
+    assert {"search_text": "ugg", "price_to": 30, "name": "auto-ugg"} in bot.feeds
     off = Bot({"feeds": [], "auto_brand_feeds": False}, client=FakeClient([]),
               store=Store(tmp_path / "g.db"), notifier=FakeNotifier(), model=PriceModel())
     assert all(not f["name"].startswith("auto-") for f in off.feeds)
@@ -739,4 +743,5 @@ def test_ugg_tazz_hickory_with_defects():
                    "Mają lekko zużytą podeszwę oraz jeden luźny szew.")
     est = model.estimate(it, when=NOV)
     assert "damage mentioned" in est.flags and est.colour_family == "brown"
-    assert 60 <= est.resale <= 85
+    assert 30 <= est.resale <= 45                       # worn Tazz: ~40 EUR, so 36.77 is no deal
+    assert not evaluate(it, est, Thresholds()).is_deal
