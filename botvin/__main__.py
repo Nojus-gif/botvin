@@ -61,6 +61,8 @@ def main(argv: list[str] | None = None) -> None:
     sub.add_parser("once")
     sub.add_parser("test-notify")
     sub.add_parser("probe", help="check that the bot can reach Vinted's search")
+    pg = sub.add_parser("page", help="show the upload time the bot reads from an item page")
+    pg.add_argument("url")
     chk = sub.add_parser("check", help="score a hypothetical listing offline")
     chk.add_argument("title")
     chk.add_argument("--price", type=float, required=True, help="total price incl. Vinted fee")
@@ -102,6 +104,19 @@ def main(argv: list[str] | None = None) -> None:
         client = VintedClient(domain=cfg.get("domain", "vinted.lt"))
         for line in client.probe():
             print(line)
+        return
+
+    if args.cmd == "page":
+        import time as _time
+        from .vinted import VintedClient
+        client = VintedClient(domain=cfg.get("domain", "vinted.lt"))
+        client.refresh_session()
+        info = client.item_page(args.url)
+        if info["uploaded_at"]:
+            print(f"uploaded {(_time.time() - info['uploaded_at']) / 60:.0f} min ago (via {info['source']})")
+        else:
+            print("upload time NOT FOUND")
+        print(f"description: {info['description'][:200]!r}")
         return
 
     if args.cmd == "test-notify":

@@ -192,6 +192,22 @@ brands:
   "Hugo Boss":
     aliases: ["hugo boss", "boss"]
     base: 45
+  "Salewa":
+    aliases: ["salewa"]
+    base: 60
+    overrides: {pants: 40, shoes: 55, boots: 60}
+  "Lowa":
+    aliases: ["lowa"]
+    base: 40
+    overrides: {boots: 65, shoes: 55}
+  "Scarpa":
+    aliases: ["scarpa"]
+    base: 40
+    overrides: {boots: 70, shoes: 55}
+  "Merrell":
+    aliases: ["merrell"]
+    base: 30
+    overrides: {shoes: 40, boots: 45}
   "Oakley":
     aliases: ["oakley"]
     base: 50

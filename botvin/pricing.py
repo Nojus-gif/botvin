@@ -137,6 +137,12 @@ class PriceModel:
             for name, rx in self._alias_res:
                 if _contains(rx, brand_field):
                     return name, True
+            # The seller picked a brand we don't track. Don't fall back to the
+            # title: sellers stuff titles with other brands for search
+            # ("aku ... lowa scarpa merrell mammut").
+            if brand_field not in ("", "other", "kita", "inna", "autre", "andere", "no brand",
+                                   "be prekės ženklo", "bez marki", "sans marque"):
+                return None, False
         title = normalize(item.title)
         for name, rx in self._alias_res:
             if _contains(rx, title):

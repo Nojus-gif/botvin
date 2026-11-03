@@ -205,3 +205,10 @@ def test_item_page_upload_time():
 
 def test_oakley_known():
     assert model.match_brand(make("Bluza Oakley", 19.94, "Oakley"))[0] == "Oakley"
+
+
+def test_title_brand_stuffing_ignored_when_brand_field_set():
+    it = make("buty trekingowe aku goretex damskie 37 lowa scarpa merrell mammut", 17, "AKU")
+    assert model.match_brand(it)[0] is None
+    # ...but an empty brand field still falls back to the title
+    assert model.match_brand(make("Kurtka Columbia", 15, ""))[0] == "Columbia"
