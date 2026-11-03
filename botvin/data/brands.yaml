@@ -1,0 +1,287 @@
+# Resale reference table.
+#
+# `base` = what a used item in "very good" condition from this brand typically
+# RESELLS for on Vinted (EUR) when it is a regular jacket, at neutral season.
+# Other categories are derived from it through `category_factors` below,
+# unless the brand overrides a category explicitly in `overrides`.
+#
+# These numbers are starting estimates. Tune them as you learn what actually
+# sells -- the bot also learns live asking prices per brand/category and
+# blends them in (see pricing.py).
+
+category_factors:
+  puffer: 1.10     # down / insulated jackets
+  jacket: 1.00     # generic jacket / shell
+  shell: 1.00      # hardshell / gore-tex
+  coat: 1.00
+  fleece: 0.60
+  vest: 0.60
+  sweater: 0.50
+  hoodie: 0.50
+  shirt: 0.35
+  tshirt: 0.25
+  pants: 0.45
+  jeans: 0.40
+  shorts: 0.30
+  shoes: 0.80
+  boots: 0.85
+  bag: 0.50
+  accessory: 0.25
+  other: 0.40
+
+# Demand curve per category by month (Jan..Dec). Multiplies the resale estimate.
+seasonality:
+  winter: [1.15, 1.00, 0.85, 0.70, 0.60, 0.55, 0.55, 0.65, 0.85, 1.10, 1.25, 1.25]
+  summer: [0.70, 0.75, 0.85, 1.00, 1.15, 1.25, 1.25, 1.10, 0.90, 0.75, 0.70, 0.70]
+  neutral: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+
+category_season:
+  puffer: winter
+  jacket: winter
+  shell: winter
+  coat: winter
+  fleece: winter
+  vest: winter
+  sweater: winter
+  hoodie: neutral
+  boots: winter
+  tshirt: summer
+  shorts: summer
+  shirt: neutral
+  pants: neutral
+  jeans: neutral
+  shoes: neutral
+  bag: neutral
+  accessory: neutral
+  other: neutral
+
+brands:
+  "Arc'teryx":
+    aliases: ["arcteryx", "arc'teryx", "arc teryx", "arcterix"]
+    base: 180
+    overrides: {fleece: 110, tshirt: 45, hoodie: 90, pants: 90}
+  "Moncler":
+    aliases: ["moncler"]
+    base: 350
+    overrides: {tshirt: 70, hoodie: 130}
+  "Canada Goose":
+    aliases: ["canada goose"]
+    base: 380
+  "Stone Island":
+    aliases: ["stone island", "stoneisland"]
+    base: 180
+    overrides: {sweater: 110, hoodie: 110, tshirt: 60, pants: 90}
+  "C.P. Company":
+    aliases: ["cp company", "c.p. company", "c.p company", "cpcompany"]
+    base: 130
+    overrides: {sweater: 80, hoodie: 80, tshirt: 45}
+  "Palace":
+    aliases: ["palace"]
+    base: 120
+    overrides: {tshirt: 45, hoodie: 85}
+  "Supreme":
+    aliases: ["supreme"]
+    base: 120
+    overrides: {tshirt: 50, hoodie: 100, accessory: 35}
+  "Norrøna":
+    aliases: ["norrona", "norrøna"]
+    base: 130
+  "Burberry":
+    aliases: ["burberry"]
+    base: 160
+    overrides: {coat: 220}
+  "Woolrich":
+    aliases: ["woolrich"]
+    base: 120
+  "The North Face":
+    aliases: ["the north face", "north face", "tnf"]
+    base: 75
+    overrides: {puffer: 115, fleece: 45, tshirt: 20}
+  "Patagonia":
+    aliases: ["patagonia"]
+    base: 85
+    overrides: {fleece: 65}
+  "Rab":
+    aliases: ["rab"]
+    base: 90
+  "Barbour":
+    aliases: ["barbour"]
+    base: 90
+  "Mammut":
+    aliases: ["mammut"]
+    base: 80
+  "Haglöfs":
+    aliases: ["haglofs", "haglöfs"]
+    base: 70
+  "Fjällräven":
+    aliases: ["fjallraven", "fjällräven"]
+    base: 70
+    overrides: {bag: 50, pants: 50}
+  "Mountain Hardwear":
+    aliases: ["mountain hardwear"]
+    base: 70
+  "Montbell":
+    aliases: ["montbell", "mont-bell"]
+    base: 70
+  "Peak Performance":
+    aliases: ["peak performance"]
+    base: 60
+  "Salomon":
+    aliases: ["salomon"]
+    base: 60
+    overrides: {shoes: 75, boots: 80}
+  "Carhartt":
+    aliases: ["carhartt", "carhartt wip"]
+    base: 65
+    overrides: {pants: 45, hoodie: 40, tshirt: 20}
+  "Napapijri":
+    aliases: ["napapijri"]
+    base: 55
+  "Marmot":
+    aliases: ["marmot"]
+    base: 50
+  "Columbia":
+    aliases: ["columbia"]
+    base: 40
+  "Helly Hansen":
+    aliases: ["helly hansen"]
+    base: 45
+  "Berghaus":
+    aliases: ["berghaus"]
+    base: 45
+  "Ralph Lauren":
+    aliases: ["ralph lauren", "polo ralph lauren", "polo by ralph lauren"]
+    base: 60
+    overrides: {sweater: 40, shirt: 30, tshirt: 20}
+  "Lacoste":
+    aliases: ["lacoste"]
+    base: 45
+    overrides: {tshirt: 25, sweater: 35}
+  "Stüssy":
+    aliases: ["stussy", "stüssy"]
+    base: 60
+    overrides: {tshirt: 30, hoodie: 50}
+  "Dr. Martens":
+    aliases: ["dr. martens", "dr martens", "docs martens"]
+    base: 60
+    overrides: {boots: 60, shoes: 55}
+  "New Balance":
+    aliases: ["new balance"]
+    base: 35
+    overrides: {shoes: 55}
+  "Nike":
+    aliases: ["nike"]
+    base: 35
+    overrides: {shoes: 55, tshirt: 15}
+  "Jordan":
+    aliases: ["jordan", "air jordan"]
+    base: 40
+    overrides: {shoes: 90}
+  "Adidas":
+    aliases: ["adidas"]
+    base: 30
+    overrides: {shoes: 45, tshirt: 12}
+  "UGG":
+    aliases: ["ugg"]
+    base: 50
+    overrides: {boots: 55}
+  "Timberland":
+    aliases: ["timberland"]
+    base: 45
+    overrides: {boots: 55}
+  "Hugo Boss":
+    aliases: ["hugo boss", "boss"]
+    base: 45
+  "Lululemon":
+    aliases: ["lululemon"]
+    base: 45
+    overrides: {pants: 40}
+
+# Words that make an item worth much less, matched in title + description.
+# Multilingual (EN, LT, PL, FI, DE, FR, ES, IT, NL). These do NOT exclude the
+# item -- a damaged TNF Summit Series can still flip -- they just discount it.
+damage_keywords:
+  - damaged
+  - broken
+  - hole
+  - stain
+  - ripped
+  - torn
+  - defect
+  - uszkodz     # PL uszkodzony
+  - dziur       # PL dziura
+  - plam        # PL plama
+  - rozdar      # PL rozdarty
+  - sugad       # LT sugadintas
+  - skyl        # LT skylė
+  - dėm         # LT dėmė
+  - plyš        # LT plyšys
+  - rikki       # FI
+  - reikä       # FI
+  - tahra       # FI
+  - kaputt      # DE
+  - loch        # DE
+  - fleck       # DE
+  - defekt      # DE / PL / LT
+  - abîm        # FR
+  - trou        # FR
+  - tache       # FR
+  - roto        # ES / IT
+  - mancha      # ES
+  - strapp      # IT
+  - kapot       # NL
+  - vlek        # NL
+
+# Words that suggest a counterfeit -- these items are skipped entirely.
+fake_keywords:
+  - replica
+  - fake
+  - "1:1"
+  - podróbk     # PL
+  - kopija      # LT
+  - inspired
+  - "aaa+"
+  - nachgemacht
+
+# Words that suggest a kids' item (much lower resale for these brands).
+kids_keywords:
+  - kids
+  - junior
+  - boys
+  - girls
+  - dziecię     # PL
+  - chłopi      # PL chłopięca
+  - dziewcz     # PL dziewczęca
+  - vaik        # LT vaikiška
+  - lasten      # FI
+  - kinder      # DE
+  - enfant      # FR
+  - niño        # ES
+  - bambin      # IT
+
+# Model names that signal the high end of a brand. Each one multiplies the
+# resale estimate (and can force a category).
+premium_keywords:
+  "gore-tex": {mult: 1.25, category: shell}
+  "goretex": {mult: 1.25, category: shell}
+  "gtx": {mult: 1.15}
+  "summit series": {mult: 1.5}
+  "nuptse": {mult: 1.35, category: puffer}
+  "himalayan": {mult: 1.5, category: puffer}
+  "mcmurdo": {mult: 1.3, category: puffer}
+  "nano puff": {mult: 1.15, category: puffer}
+  "down sweater": {mult: 1.15, category: puffer}
+  "retro-x": {mult: 1.25, category: fleece}
+  "retro x": {mult: 1.25, category: fleece}
+  "alpha sv": {mult: 1.6, category: shell}
+  "beta ar": {mult: 1.4, category: shell}
+  "beta lt": {mult: 1.3, category: shell}
+  "atom": {mult: 1.0, category: puffer}
+  "cerium": {mult: 1.2, category: puffer}
+  "omni-heat": {mult: 1.15, category: puffer}
+  "titanium": {mult: 1.2}
+  "bedale": {mult: 1.2, category: coat}
+  "beaufort": {mult: 1.2, category: coat}
+  "detroit": {mult: 1.3, category: jacket}
+  "ghost piece": {mult: 1.3}
+  "maya": {mult: 1.2, category: puffer}

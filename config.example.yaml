@@ -1,0 +1,64 @@
+# Copy to config.yaml and edit. config.yaml is git-ignored (it holds your tokens).
+
+domain: vinted.lt              # Vinted shows cross-border EU listings on every domain
+poll_interval: 20              # seconds between sweeps (jittered ±20%)
+min_request_interval: 2.0      # seconds between any two HTTP requests -- don't go lower
+database: botvin.db
+fetch_descriptions: true       # fetch description of candidate deals to catch damage/fakes
+alert_on_startup: false        # false = first sweep only records existing listings
+
+thresholds:
+  min_profit: 20               # EUR after buy price + shipping
+  min_margin: 0.6              # 0.6 = 60% return on what you pay
+  min_confidence: 0.6
+  max_price: 400
+  shipping_cost: 3.5
+  max_age_minutes: 90
+  high_priority_profit: 50
+
+notify:
+  # Easiest: install the "ntfy" app on your phone, subscribe to a long random
+  # topic name (anyone who knows it can read it), and put it here.
+  ntfy:
+    topic: botvin-CHANGE-ME-to-something-random
+    # server: https://ntfy.sh
+    # token: tk_...            # only if you use a protected/self-hosted topic
+  # Optional: Telegram. Create a bot with @BotFather, message it once, then get
+  # your chat id from https://api.telegram.org/bot<TOKEN>/getUpdates
+  telegram:
+    token: ""
+    chat_id: ""
+
+# Each feed is one Vinted search, polled every sweep, newest first.
+# The bot scores EVERY item it sees against the brand table, so broad feeds
+# catch "anything" deals; targeted feeds with price caps catch more of the
+# brands you care about before others do.
+#
+# Filter fields: search_text, catalog_ids, brand_ids, size_ids, status_ids,
+# price_from, price_to, per_page (max 96). Get ids by filtering on the Vinted
+# website and copying them from the URL (e.g. ...&brand_ids[]=53).
+feeds:
+  - name: everything-cheap
+    search_text: ""
+    price_to: 60
+  - name: columbia
+    search_text: columbia
+    price_to: 35
+  - name: north-face
+    search_text: north face
+    price_to: 60
+  - name: patagonia
+    search_text: patagonia
+    price_to: 70
+  - name: arcteryx
+    search_text: arcteryx
+    price_to: 150
+  - name: palace-stone-cp
+    search_text: stone island
+    price_to: 120
+
+# Override or add brands without touching botvin/data/brands.yaml:
+# brands:
+#   "Acne Studios":
+#     aliases: ["acne studios", "acne"]
+#     base: 120

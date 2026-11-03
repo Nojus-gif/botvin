@@ -1,0 +1,5 @@
+requests>=2.31
+PyYAML>=6.0
+# Optional but strongly recommended: impersonates a real Chrome TLS fingerprint,
+# which makes Vinted's bot protection much less likely to block you.
+curl_cffi>=0.7
