@@ -477,3 +477,47 @@ def test_auto_feeds_for_instant_brands(tmp_path):
     off = Bot({"feeds": [], "auto_brand_feeds": False}, client=FakeClient([]),
               store=Store(tmp_path / "g.db"), notifier=FakeNotifier(), model=PriceModel())
     assert all(not f["name"].startswith("auto-") for f in off.feeds)
+
+
+def test_audience_pink_large_jacket_is_womens_and_uncommon():
+    base = model.estimate(make("The North Face kurtka", 20, "The North Face", size="M"), when=NOV)
+    pink_l = model.estimate(make("The North Face kurtka różowa", 20, "The North Face", size="L"), when=NOV)
+    assert any("women's (by colour)" in f for f in pink_l.flags)
+    assert any("size L is uncommon for women" in f for f in pink_l.flags)
+    assert pink_l.resale < base.resale * 0.8
+
+
+def test_audience_gender_from_words_and_page():
+    # women's words: S/M fine, XL heavily discounted
+    m = model.estimate(make("Moteriška Patagonia striukė", 30, "Patagonia", size="M"), when=NOV)
+    xl = model.estimate(make("Moteriška Patagonia striukė", 30, "Patagonia", size="XL"), when=NOV)
+    assert xl.resale < m.resale * 0.6
+    # men's L is the sweet spot; men's item in pink is a narrow market
+    men_l = model.estimate(make("Kurtka męska The North Face", 20, "The North Face", size="L"), when=NOV)
+    men_pink = model.estimate(make("Kurtka męska The North Face różowa", 20, "The North Face", size="L"), when=NOV)
+    assert men_pink.resale < men_l.resale * 0.8 and "pink men's item x0.75" in men_pink.flags
+    # gender/colour from the item page beat guessing
+    it = make("The North Face kurtka", 20, "The North Face", size="L")
+    it.gender, it.colour = "women", "Rožinė"
+    est = model.estimate(it, when=NOV)
+    assert any("women's (listed)" in f for f in est.flags) and "colour: pink" in est.flags
+
+
+def test_audience_shoe_sizes_by_gender():
+    w39 = model.estimate(make("Moteriški UGG batai", 20, "UGG", size="39"), when=NOV)
+    w43 = model.estimate(make("Moteriški UGG batai", 20, "UGG", size="43"), when=NOV)
+    assert w43.resale < w39.resale * 0.6
+    m38 = model.estimate(make("Nike Air Max męskie", 20, "Nike", size="38"), when=NOV)
+    m43 = model.estimate(make("Nike Air Max męskie", 20, "Nike", size="43"), when=NOV)
+    assert m38.resale < m43.resale * 0.6
+
+
+def test_item_page_gender_and_colour():
+    from botvin.itempage import parse_item_page
+    page = ('<script type="application/ld+json">{"@type":"BreadcrumbList","itemListElement":['
+            '{"position":1,"name":"Pagrindinis"},{"position":2,"name":"Moterims"},'
+            '{"position":3,"name":"Drabužiai"}]}</script>'
+            '<script>{"item":{"id":42,"color1":"Rožinė","favourite_count":3}}</script>')
+    r = parse_item_page(page, now=time.time(), item_id=42)
+    assert r["gender"] == "women" and r["colour"] == "Rožinė"
+    assert parse_item_page("<p>x</p>", now=time.time())["gender"] is None

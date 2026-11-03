@@ -81,6 +81,8 @@ class Bot:
             return None                        # already sent; don't spam
         if track.get("description"):
             item.description = track["description"]
+        item.gender = item.gender or track.get("gender") or ""
+        item.colour = item.colour or track.get("colour") or ""
         if track.get("uploaded_at") and not item.uploaded_at:
             item.uploaded_at = track["uploaded_at"]
 
@@ -100,8 +102,11 @@ class Bot:
             except VintedError as e:
                 log.debug("item page failed: %s", e)
                 page = {"description": "", "uploaded_at": None, "source": "error"}
-            self.store.set_page_info(item.id, page["description"], page["uploaded_at"])
+            self.store.set_page_info(item.id, page["description"], page["uploaded_at"],
+                                     page.get("gender"), page.get("colour"))
             item.description = item.description or page["description"]
+            item.gender = item.gender or page.get("gender") or ""
+            item.colour = item.colour or page.get("colour") or ""
             if page["uploaded_at"] and not item.uploaded_at:
                 item.uploaded_at = page["uploaded_at"]
             track = self.store.tracking(item.id)
@@ -140,7 +145,8 @@ class Bot:
         if nxt is None:
             return
         snapshot = {k: getattr(item, k) for k in ("id", "title", "price", "total_price", "currency",
-                                                   "brand", "size", "condition", "url", "photo_url")}
+                                                   "brand", "size", "condition", "url", "photo_url",
+                                                   "gender", "colour")}
         self.store.watch(item.id, nxt, json.dumps(snapshot))
 
     def check_watchlist(self, now: float | None = None) -> int:

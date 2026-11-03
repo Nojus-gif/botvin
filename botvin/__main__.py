@@ -117,6 +117,7 @@ def main(argv: list[str] | None = None) -> None:
         else:
             print("upload time NOT FOUND")
         print(f"likes: {info.get('likes')}  views: {info.get('views')}  sold: {info.get('sold')}")
+        print(f"gender: {info.get('gender')}  colour: {info.get('colour')}")
         print(f"description: {info['description'][:200]!r}")
         return
 

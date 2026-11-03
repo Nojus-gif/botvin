@@ -22,7 +22,12 @@ For every new listing:
    - **Season**: winter gear is ×1.25 in Nov/Dec and ×0.55 in summer; t-shirts
      and shorts follow the opposite curve.
    - **Condition**: new with tags ×1.25 … satisfactory ×0.7.
-   - **Size**: XS and below sell slower.
+   - **Who buys it (gender × size × colour)**: gender comes from the item
+     page's Women/Men breadcrumb, words like `moteriška`/`damska`/`męska`/
+     `naisten`, or, failing that, the colour: pink/lilac with no other clue is
+     treated as women's. Then size demand depends on gender: women's L ×0.75,
+     XL ×0.55; men's S ×0.85, XL ×0.95. Women's shoes above 41 and men's below
+     41 or above 45 are discounted. A men's item in pink/lilac is ×0.75.
    - **Model names**: `gore-tex`, `nuptse`, `summit series`, `beta ar`, `nano puff`…
    - **Damage words** (`uszkodzony`, `skylė`, `rikki`, `kaputt`…): ×0.75. The
      item still gets alerted, with a ⚠ flag, because a damaged TNF can still flip.

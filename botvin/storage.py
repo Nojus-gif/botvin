@@ -57,6 +57,8 @@ EXTRA_TRACKING_COLUMNS = [
     ("sold_at", "REAL"),                # when we noticed it sold
     ("item_json", "TEXT"),              # enough of the listing to rebuild it
     ("followup", "INTEGER DEFAULT 0"),  # 1 = "demand confirmed" already sent
+    ("gender", "TEXT"),                 # from the item page
+    ("colour", "TEXT"),
 ]
 
 
@@ -121,9 +123,10 @@ class Store:
         row = cur.fetchone()
         return dict(zip([c[0] for c in cur.description], row)) if row else None
 
-    def set_page_info(self, item_id: int, description: str, uploaded_at: float | None) -> None:
-        self.db.execute("UPDATE tracking SET description=?, uploaded_at=? WHERE id=?",
-                        (description, uploaded_at, item_id))
+    def set_page_info(self, item_id: int, description: str, uploaded_at: float | None,
+                      gender: str | None = None, colour: str | None = None) -> None:
+        self.db.execute("UPDATE tracking SET description=?, uploaded_at=?, gender=?, colour=? WHERE id=?",
+                        (description, uploaded_at, gender, colour, item_id))
         self.db.commit()
 
     def category_demand(self, brand: str, category: str, days: int = 14,

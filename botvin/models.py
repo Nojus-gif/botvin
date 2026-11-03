@@ -64,6 +64,8 @@ class Item:
     uploaded_at: float | None = None  # unix ts, from the photo timestamp
     seller: str = ""
     description: str = ""
+    gender: str = ""                 # "women" / "men" from the item page, if known
+    colour: str = ""                 # colour name from the item page, if known
     raw: dict = field(default_factory=dict, repr=False)
 
     @property

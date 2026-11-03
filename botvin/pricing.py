@@ -11,6 +11,7 @@ from pathlib import Path
 
 import yaml
 
+from .audience import assess
 from .models import Item
 
 DATA_FILE = Path(__file__).parent / "data" / "brands.yaml"
@@ -96,6 +97,14 @@ def kids_size(size: str) -> bool:
     if m and 40 <= int(m.group(1)) <= 176:
         return True
     return bool(_KIDS_SIZE_RES[1].search(s) or _KIDS_SIZE_RES[2].search(s))
+
+
+def shoe_eu(size: str) -> float | None:
+    """'US 10 / EU 44' -> 44.0; '42,5' -> 42.5. Prefers an explicit EU value."""
+    s = normalize(size)
+    m = (re.search(r"eu\s*(\d{2}(?:[.,]5)?)", s)
+         or re.search(r"(?<![\d.,])(\d{2}(?:[.,]5)?)(?![\d])", s))
+    return float(m.group(1).replace(",", ".")) if m else None
 
 
 def letter_size(size: str) -> str | None:
@@ -252,12 +261,8 @@ class PriceModel:
         if letter and letter in self.excluded_sizes:
             return f"extreme size ({item.size})"
         if category in ("shoes", "boots"):
-            size_txt = normalize(item.size)
-            # Prefer an explicit EU size ("US 10 / EU 44"), else the first 2-digit number.
-            m = (re.search(r"eu\s*(\d{2}(?:[.,]5)?)", size_txt)
-                 or re.search(r"(?<![\d.,])(\d{2}(?:[.,]5)?)(?![\d])", size_txt))
-            if m:
-                eu = float(m.group(1).replace(",", "."))
+            eu = shoe_eu(item.size)
+            if eu is not None:
                 if eu < self.min_shoe_size or eu > self.max_shoe_size:
                     return f"shoe size {item.size}"
         return None
@@ -312,7 +317,14 @@ class PriceModel:
 
         season = self.season_mult(category, when, brand)
         cond = CONDITION_MULT.get(item.condition, CONDITION_MULT["unknown"])
-        size = SIZE_MULT.get(letter_size(item.size) or "", 1.0)
+        letter = letter_size(item.size)
+        aud_mult, gender, aud_flags = assess(
+            title=item.title, description=item.description, size_letter=letter,
+            shoe_eu=shoe_eu(item.size) if category in ("shoes", "boots") else None,
+            page_gender=item.gender or None, page_colour=item.colour or None)
+        # Known audience: size demand depends on gender. Unknown: generic table.
+        size = aud_mult if gender else SIZE_MULT.get(letter or "", 1.0) * aud_mult
+        flags.extend(aud_flags)
 
         mult = premium_mult * season * cond * size
         if _contains(self.damage_re, text):

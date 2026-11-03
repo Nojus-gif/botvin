@@ -125,7 +125,45 @@ def parse_item_page(page: str, now: float | None = None, item_id: int | None = N
     return {"uploaded_at": uploaded, "source": source, "description": desc.strip(),
             "likes": _first_int(scope, ("favourite_count", "favorite_count", "favourites_count")),
             "views": _first_int(scope, ("view_count", "views_count")),
-            "sold": _is_sold(scope)}
+            "sold": _is_sold(scope),
+            "gender": _gender(page, flat),
+            "colour": _colour(scope, page)}
+
+
+_WOMEN_ROOTS = ("moterims", "women", "kobiety", "damen", "femmes", "naiset", "mujer", "donna",
+                "dames", "sievietēm", "naised")
+_MEN_ROOTS = ("vyrams", "men", "mężczyźni", "herren", "hommes", "miehet", "hombre", "uomo",
+              "heren", "vīriešiem", "mehed")
+
+
+def _gender(page: str, flat: str) -> str | None:
+    """From the item's breadcrumb (Home > Moterims > Drabužiai > ...)."""
+    names: list[str] = []
+    for block in re.findall(r'(?is)<script[^>]+application/ld\+json[^>]*>(.*?)</script>', page):
+        if "BreadcrumbList" in block:
+            names += re.findall(r'"name"\s*:\s*"([^"]+)"', block)
+    if not names:                                  # breadcrumb in embedded JSON
+        m = re.search(r'"breadcrumbs?"\s*:\s*\[(.{0,3000}?)\]', flat, re.S)
+        if m:
+            names = re.findall(r'"title"\s*:\s*"([^"]+)"', m.group(1)) or \
+                    re.findall(r'"name"\s*:\s*"([^"]+)"', m.group(1))
+    for n in names[:4]:                            # top levels only
+        n = _json_unescape(n).strip().lower()
+        if n in _WOMEN_ROOTS:
+            return "women"
+        if n in _MEN_ROOTS:
+            return "men"
+    return None
+
+
+def _colour(scope: str, page: str) -> str | None:
+    m = re.search(r'"color1"\s*:\s*"([^"]+)"', scope) or re.search(r'"colou?rs?"\s*:\s*"([^"]+)"', scope)
+    if m:
+        return _json_unescape(m.group(1))
+    text = _visible_text(page)
+    m = re.search(r"(?:Spalva|Colou?r|Kolor|Farbe|Couleur|Väri|Krāsa|Värv)\s*:?\s+"
+                  r"([^\W\d_]+(?:\s*,\s*[^\W\d_]+)?)", text)
+    return m.group(1) if m else None
 
 
 def _item_scope(flat: str, item_id: int | None, radius: int = 4000) -> str:
