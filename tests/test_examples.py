@@ -251,9 +251,9 @@ def test_normal_sizes_kept(size):
 def test_kids_words_and_shoe_sizes():
     assert model.estimate(make("Kurtka Columbia chłopięca", 10, "Columbia"), when=NOV).excluded
     shoe = lambda size: model.estimate(make("Nike Air Max 90", 30, "Nike", size=size), when=NOV).excluded
-    for ok in ("42", "43", "44.5", "46", "EU 44", "US 10 / EU 44", "44 2/3"):
+    for ok in ("36", "38", "41.5", "43", "44.5", "47", "EU 44", "US 10 / EU 44", "44 2/3"):
         assert shoe(ok) is None, ok
-    for bad in ("33", "38", "41.5", "46.5", "47", "EU 40"):
+    for bad in ("33", "35", "47.5", "48", "EU 34"):
         assert shoe(bad), bad
     # "baby blue" is a colour, not a kids' item
     assert model.estimate(make("Ralph Lauren baby blue sweater", 10, "Ralph Lauren"), when=NOV).excluded is None
@@ -407,3 +407,17 @@ def test_brand_mismatch_in_title():
     # genuine items are untouched ("Emu" must be a word, not part of one)
     assert model.estimate(make("UGG Classic Tall batai", 30, "UGG", size="43"), when=NOV).excluded is None
     assert model.estimate(make("Moncler Maya puffer", 90, "Moncler"), when=NOV).excluded is None
+
+
+def test_adidas_needs_a_really_great_deal():
+    t = Thresholds()
+    # Adidas shoes resell ~45: 15 EUR would be a deal for most brands, not for Adidas.
+    ok = make("Adidas Samba", 15, "Adidas", size="43")
+    v = evaluate(ok, model.estimate(ok, when=NOV), t)
+    assert not v.is_deal and any("profit" in r for r in v.reasons)
+    # Same price for a Nike shoe (resale ~55) passes the normal bar.
+    nike = make("Nike Air Max 90", 15, "Nike", size="43")
+    assert evaluate(nike, model.estimate(nike, when=NOV), t).is_deal
+    # A genuinely great Adidas deal (premium model, near-free) still alerts.
+    great = make("Adidas Gore-Tex striukė", 2, "Adidas", size="L", status="Labai gera")
+    assert evaluate(great, model.estimate(great, when=NOV), t).is_deal

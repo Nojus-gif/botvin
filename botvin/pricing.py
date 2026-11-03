@@ -130,6 +130,8 @@ class Estimate:
     confidence: float             # 0..1
     flags: list[str] = field(default_factory=list)
     excluded: str | None = None   # reason, if the item should be skipped
+    min_profit: float | None = None   # brand-specific stricter thresholds
+    min_margin: float | None = None
 
 
 class PriceModel:
@@ -139,8 +141,8 @@ class PriceModel:
         self.exclude_kids = bool(filters.get("exclude_kids", True))
         self.excluded_sizes = {normalize(x) for x in
                                filters.get("excluded_sizes", DEFAULT_EXCLUDED_SIZES)}
-        self.min_shoe_size = float(filters.get("min_shoe_size", 42))
-        self.max_shoe_size = float(filters.get("max_shoe_size", 46))
+        self.min_shoe_size = float(filters.get("min_shoe_size", 36))
+        self.max_shoe_size = float(filters.get("max_shoe_size", 47))
         with open(data_file, encoding="utf-8") as f:
             data = yaml.safe_load(f)
         if brand_overrides:
@@ -310,4 +312,5 @@ class PriceModel:
         if n >= 5:
             confidence += 0.1
         return Estimate(brand, category, round(resale, 2), round(baseline, 2), median, n,
-                        min(confidence, 1.0), flags)
+                        min(confidence, 1.0), flags,
+                        min_profit=info.get("min_profit"), min_margin=info.get("min_margin"))

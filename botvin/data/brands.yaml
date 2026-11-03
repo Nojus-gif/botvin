@@ -1,5 +1,8 @@
 # Resale reference table.
 #
+# Optional per brand: `min_profit` / `min_margin` raise the bar for that brand
+# above the global thresholds (used for Adidas).
+#
 # `base` = what a used item in "very good" condition from this brand typically
 # RESELLS for on Vinted (EUR) when it is a regular jacket, at neutral season.
 # Other categories are derived from it through `category_factors` below,
@@ -196,6 +199,9 @@ brands:
     aliases: ["adidas"]
     base: 30
     overrides: {shoes: 45, tshirt: 12}
+    # Lots of cheap, unwanted Adidas on Vinted: only alert on really great deals.
+    min_profit: 40
+    min_margin: 1.5
   "UGG":
     aliases: ["ugg", "uggs"]
     base: 50

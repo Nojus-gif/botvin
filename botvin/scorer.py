@@ -118,7 +118,8 @@ def evaluate(item: Item, est: Estimate, t: Thresholds, demand: Demand | None = N
     hype = demand.likes_per_hour or 0.0
 
     # Strong demand means it will resell fast, so accept a thinner margin.
-    min_profit, min_margin = t.min_profit, t.min_margin
+    min_profit = max(t.min_profit, est.min_profit or 0)
+    min_margin = max(t.min_margin, est.min_margin or 0)
     if demand.level == "hot":
         min_profit *= 1 - t.hot_profit_relief
         min_margin -= t.hot_margin_relief

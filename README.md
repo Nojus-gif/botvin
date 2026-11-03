@@ -28,7 +28,7 @@ For every new listing:
    - **Kids' items and extreme sizes: skipped.** Searches only cover Vinted's
      Men + Women sections. Anything else is dropped if it has a kids' size
      (`140 cm`, `10 m.`, `12 years`), kids' words (`junior`, `chłopięca`,
-     `vaikiška`), XXS/XS/XXL/3XL+ sizes, or shoes outside EU 42–46.
+     `vaikiška`), XXS/XS/XXL/3XL+ sizes, or shoes outside EU 36–47.
      Change this under `filters:` in `config.yaml`.
 5. **Market blend**: the bot stores every listing it sees in SQLite. Once it has
    at least 5 comparable listings (same brand and category, last 30 days), it
