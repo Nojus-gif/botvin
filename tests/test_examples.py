@@ -731,3 +731,12 @@ def test_nike_and_adidas_puffers_skipped():
     assert model.estimate(make("Nike Air Max 90", 20, "Nike", size="43"), when=NOV).excluded is None
     hoodie = make("Nike hoodie white", 20, "Nike", size="M")
     assert not any("x1.10" in f for f in model.estimate(hoodie, when=NOV).flags)
+
+
+def test_ugg_tazz_hickory_with_defects():
+    it = make("Ugg tazz II hickory", 36.77, "UGG", size="39", status="Gera",
+              desc="KOLOR HICKORY Buty posiadają widoczne na zdjęciach wady i były noszone! "
+                   "Mają lekko zużytą podeszwę oraz jeden luźny szew.")
+    est = model.estimate(it, when=NOV)
+    assert "damage mentioned" in est.flags and est.colour_family == "brown"
+    assert 60 <= est.resale <= 85

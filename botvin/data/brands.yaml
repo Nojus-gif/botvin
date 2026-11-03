@@ -294,6 +294,21 @@ damage_keywords:
   - torn
   - defect
   - uszkodz     # PL uszkodzony
+  - wady        # PL defects ("widoczne wady")
+  - wadą
+  - zużyt       # PL worn (zużyta podeszwa)
+  - przetar     # PL worn through
+  - starł       # PL rubbed off (starło się)
+  - luźny szew  # PL loose seam
+  - pruje       # PL seam coming apart
+  - nusidėvėj   # LT worn
+  - nusitryn    # LT rubbed off
+  - išsiręž     # LT
+  - worn out
+  - loose seam
+  - scuff
+  - kulumi      # FI worn
+  - abgenutzt   # DE worn
   - dziur       # PL dziura
   - plam        # PL plama
   - rozdar      # PL rozdarty
