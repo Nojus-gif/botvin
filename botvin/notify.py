@@ -16,7 +16,7 @@ log = logging.getLogger(__name__)
 
 def format_message(item: Item, est: Estimate, v: Verdict,
                    heating_up: bool = False, confirmed: bool = False) -> tuple[str, str]:
-    prefix = "🔥 " if v.demand.level == "hot" else ""
+    prefix = ("⚡ " if est.instant else "") + ("🔥 " if v.demand.level == "hot" else "")
     title = f"{prefix}+{v.profit:.0f}€  {est.brand or item.brand} {est.category} · {item.total_price:.2f}€"
     lines = [
         item.title,
@@ -24,6 +24,8 @@ def format_message(item: Item, est: Estimate, v: Verdict,
         f"Size {item.size or '?'} · {item.condition.replace('_', ' ')}",
         v.demand.describe(),
     ]
+    if est.instant and not (confirmed or heating_up):
+        lines.insert(1, "⚡ This brand sells within minutes. Decide now.")
     if confirmed:
         title = "✅ Demand confirmed: " + title
         lines.insert(0, "The deal you got earlier is getting lots of likes:")

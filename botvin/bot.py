@@ -38,7 +38,9 @@ class Bot:
         self.model = model or PriceModel(brand_overrides=cfg.get("brands"),
                                          filters=cfg.get("filters"))
         self.t = Thresholds(**(cfg.get("thresholds") or {}))
-        self.feeds: list[dict] = cfg.get("feeds") or [{"name": "everything", "search_text": ""}]
+        self.feeds: list[dict] = list(cfg.get("feeds") or [{"name": "everything", "search_text": ""}])
+        if cfg.get("auto_brand_feeds", True):
+            self.feeds += self._brand_feeds()
         self.fetch_descriptions = bool(cfg.get("fetch_descriptions", True))
         filters = cfg.get("filters") or {}
         # Vinted catalog ids: 5 = Men, 1904 = Women (1193 = Kids, not searched).
@@ -47,6 +49,21 @@ class Bot:
         # Page re-checks slow down the sweep; a couple per sweep keeps up with
         # the schedule without delaying new listings much.
         self.checks_per_sweep = int(cfg.get("watch_checks_per_sweep", 2))
+
+    def _brand_feeds(self) -> list[dict]:
+        """A dedicated search for each brand marked `feed_price_to` in
+        brands.yaml (UGG, Carhartt...), unless config already searches it."""
+        have = {str(f.get("search_text", "")).lower() for f in self.feeds}
+        extra = []
+        for name, info in self.model.brands.items():
+            cap = info.get("feed_price_to")
+            text = (info.get("aliases") or [name])[0]
+            if cap and text.lower() not in have and name.lower() not in have:
+                extra.append({"name": f"auto-{text}", "search_text": text, "price_to": cap})
+        if extra:
+            log.info("added searches for fast-selling brands: %s",
+                     ", ".join(f"{f['search_text']} (≤{f['price_to']}€)" for f in extra))
+        return extra
 
     # ------------------------------------------------------------------ core
     def process(self, item: Item, *, first_pass: bool = False) -> Verdict | None:

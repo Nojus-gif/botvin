@@ -144,6 +144,7 @@ class Estimate:
     excluded: str | None = None   # reason, if the item should be skipped
     min_profit: float | None = None   # brand-specific stricter thresholds
     min_margin: float | None = None
+    instant: bool = False             # brand sells within minutes
 
 
 class PriceModel:
@@ -261,9 +262,11 @@ class PriceModel:
                     return f"shoe size {item.size}"
         return None
 
-    def season_mult(self, category: str, when: dt.date | None = None) -> float:
+    def season_mult(self, category: str, when: dt.date | None = None,
+                    brand: str | None = None) -> float:
         month = (when or dt.date.today()).month
-        curve = self.seasonality[self.category_season.get(category, "neutral")]
+        season = (self.brands.get(brand) or {}).get("season") if brand else None
+        curve = self.seasonality[season or self.category_season.get(category, "neutral")]
         return curve[month - 1]
 
     # ---------------------------------------------------------------- estimate
@@ -307,7 +310,7 @@ class PriceModel:
         else:
             base = float(info["base"]) * self.category_factors.get(category, self.category_factors["other"])
 
-        season = self.season_mult(category, when)
+        season = self.season_mult(category, when, brand)
         cond = CONDITION_MULT.get(item.condition, CONDITION_MULT["unknown"])
         size = SIZE_MULT.get(letter_size(item.size) or "", 1.0)
 
@@ -340,4 +343,5 @@ class PriceModel:
             confidence += 0.1
         return Estimate(brand, category, round(resale, 2), round(baseline, 2), median, n,
                         min(confidence, 1.0), flags,
-                        min_profit=info.get("min_profit"), min_margin=info.get("min_margin"))
+                        min_profit=info.get("min_profit"), min_margin=info.get("min_margin"),
+                        instant=bool(info.get("instant")))

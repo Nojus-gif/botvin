@@ -109,13 +109,13 @@ class FakeNotifier:
 
 def test_bot_alerts_only_on_new_items_after_first_sweep(tmp_path, monkeypatch):
     import botvin.pricing as p
-    monkeypatch.setattr(p.PriceModel, "season_mult", lambda self, c, w=None: 1.25)
+    monkeypatch.setattr(p.PriceModel, "season_mult", lambda self, c, w=None, b=None: 1.25)
     old = make("Kurtka Columbia", 15.13, "Columbia", id_=1)
     new = make("Kurtka Columbia", 15.13, "Columbia", id_=2)
     junk = make("Zara jacket", 5, "Zara", id_=3)
     client = FakeClient([[old], [old, new, junk], [old, new, junk]])
     notifier = FakeNotifier()
-    bot = Bot({"feeds": [{"name": "t"}], "filters": {"adult_catalogs": []}}, client=client,
+    bot = Bot({"feeds": [{"name": "t"}], "filters": {"adult_catalogs": []}, "auto_brand_feeds": False}, client=client,
               store=Store(tmp_path / "t.db"),
               notifier=notifier, model=PriceModel())
     bot.run(once=True)                     # first sweep: record only
@@ -176,7 +176,7 @@ def test_hot_demand_relaxes_margin():
 
 def test_bot_alerts_when_existing_item_heats_up(tmp_path, monkeypatch):
     import botvin.pricing as p
-    monkeypatch.setattr(p.PriceModel, "season_mult", lambda self, c, w=None: 1.25)
+    monkeypatch.setattr(p.PriceModel, "season_mult", lambda self, c, w=None, b=None: 1.25)
     # Profit ~13.5: not a deal at min_profit 15 with no likes, a deal once hot.
     cold = make("Kurtka Columbia", 28.0, "Columbia", id_=7, fav=0)
     cold.uploaded_at = None
@@ -186,7 +186,7 @@ def test_bot_alerts_when_existing_item_heats_up(tmp_path, monkeypatch):
     notifier = FakeNotifier()
     store = Store(tmp_path / "t.db")
     bot = Bot({"feeds": [{"name": "t"}], "thresholds": {"min_profit": 15},
-               "filters": {"adult_catalogs": []}}, client=client,
+               "filters": {"adult_catalogs": []}, "auto_brand_feeds": False}, client=client,
               store=store, notifier=notifier, model=PriceModel())
     bot.run(once=True)
     bot.poll_feed({"name": "t"})
@@ -319,7 +319,7 @@ class PageClient(FakeClient):
 def _watch_bot(tmp_path, client, notifier, **thr):
     import botvin.pricing as p
     return Bot({"feeds": [{"name": "t"}], "thresholds": {"min_profit": 15, **thr},
-                "filters": {"adult_catalogs": []}}, client=client,
+                "filters": {"adult_catalogs": []}, "auto_brand_feeds": False}, client=client,
                store=Store(tmp_path / "w.db"), notifier=notifier, model=PriceModel())
 
 
@@ -332,7 +332,7 @@ def _age(store, item_id, minutes):
 
 def test_watchlist_alerts_when_item_heats_up(tmp_path, monkeypatch):
     import botvin.pricing as p
-    monkeypatch.setattr(p.PriceModel, "season_mult", lambda self, c, w=None: 1.25)
+    monkeypatch.setattr(p.PriceModel, "season_mult", lambda self, c, w=None, b=None: 1.25)
     item = make("Kurtka Columbia", 28.0, "Columbia", id_=11)   # profit ~13.5: not a deal yet
     item.uploaded_at = None
     pages = {}
@@ -350,7 +350,7 @@ def test_watchlist_alerts_when_item_heats_up(tmp_path, monkeypatch):
 
 def test_watchlist_confirms_alerted_deal_once(tmp_path, monkeypatch):
     import botvin.pricing as p
-    monkeypatch.setattr(p.PriceModel, "season_mult", lambda self, c, w=None: 1.25)
+    monkeypatch.setattr(p.PriceModel, "season_mult", lambda self, c, w=None, b=None: 1.25)
     item = make("Kurtka Columbia", 15.13, "Columbia", id_=12)
     item.uploaded_at = None
     pages = {}
@@ -372,7 +372,7 @@ def test_watchlist_confirms_alerted_deal_once(tmp_path, monkeypatch):
 
 def test_watchlist_low_demand_never_alerts_and_sold_is_recorded(tmp_path, monkeypatch):
     import botvin.pricing as p
-    monkeypatch.setattr(p.PriceModel, "season_mult", lambda self, c, w=None: 1.25)
+    monkeypatch.setattr(p.PriceModel, "season_mult", lambda self, c, w=None, b=None: 1.25)
     item = make("Kurtka Columbia", 28.0, "Columbia", id_=13)
     item.uploaded_at = None
     pages = {13: {"likes": 2, "views": 40}}                        # 2 likes in 30 min: cold
@@ -435,7 +435,7 @@ def test_gloves_are_not_puffers():
 
 def test_arcteryx_with_4_likes_in_an_hour_is_not_confirmed(tmp_path, monkeypatch):
     import botvin.pricing as p
-    monkeypatch.setattr(p.PriceModel, "season_mult", lambda self, c, w=None: 1.25)
+    monkeypatch.setattr(p.PriceModel, "season_mult", lambda self, c, w=None, b=None: 1.25)
     item = make("Arcteryx jacket", 116.20, "Arc'teryx", id_=21, status="Labai gera")
     item.uploaded_at = None
     pages = {}
@@ -450,3 +450,30 @@ def test_arcteryx_with_4_likes_in_an_hour_is_not_confirmed(tmp_path, monkeypatch
     _age(bot.store, 21, 60)
     bot.check_watchlist()
     assert "confirmed" not in kinds
+
+
+def test_instant_brands_ugg_and_carhartt():
+    ugg = make("Balti moteriški UGG batai ant storos platformos", 10.15, "UGG", size="39",
+               status="Labai gera")
+    est = model.estimate(ugg, when=NOV)
+    assert est.instant and est.resale >= 80, est
+    v = evaluate(ugg, est, Thresholds())
+    assert v.is_deal and v.priority == "high"
+    from botvin.notify import format_message
+    title, body = format_message(ugg, est, v)
+    assert title.startswith("⚡") and "sells within minutes" in body
+
+    det = make("Carhartt WIP Detroit Jacket M", 51.19, "Carhartt", size="M", status="Labai gera")
+    est = model.estimate(det, when=NOV)
+    assert est.resale >= 120 and evaluate(det, est, Thresholds()).is_deal
+
+
+def test_auto_feeds_for_instant_brands(tmp_path):
+    bot = Bot({"feeds": [{"name": "c", "search_text": "Carhartt"}]}, client=FakeClient([]),
+              store=Store(tmp_path / "f.db"), notifier=FakeNotifier(), model=PriceModel())
+    texts = [f["search_text"] for f in bot.feeds]
+    assert texts.count("Carhartt") == 1 and "carhartt" not in texts   # not duplicated
+    assert {"search_text": "ugg", "price_to": 45, "name": "auto-ugg"} in bot.feeds
+    off = Bot({"feeds": [], "auto_brand_feeds": False}, client=FakeClient([]),
+              store=Store(tmp_path / "g.db"), notifier=FakeNotifier(), model=PriceModel())
+    assert all(not f["name"].startswith("auto-") for f in off.feeds)

@@ -120,7 +120,8 @@ def evaluate(item: Item, est: Estimate, t: Thresholds, demand: Demand | None = N
     # Strong demand means it will resell fast, so accept a thinner margin.
     min_profit = max(t.min_profit, est.min_profit or 0)
     min_margin = max(t.min_margin, est.min_margin or 0)
-    if demand.level == "hot":
+    # ...and so do brands that are known to sell within a minute.
+    if demand.level == "hot" or est.instant:
         min_profit *= 1 - t.hot_profit_relief
         min_margin -= t.hot_margin_relief
 
@@ -144,7 +145,7 @@ def evaluate(item: Item, est: Estimate, t: Thresholds, demand: Demand | None = N
         if known_age is not None and known_age > t.max_age_minutes:
             ok = False; reasons.append(f"listed {known_age:.0f} min ago")
 
-    if profit >= t.high_priority_profit or margin >= 2.0 or demand.level == "hot":
+    if profit >= t.high_priority_profit or margin >= 2.0 or demand.level == "hot" or est.instant:
         priority = "high"
     elif ok:
         priority = "normal"

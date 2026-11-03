@@ -76,6 +76,10 @@ feeds:
     search_text: stone island
     price_to: 120
 
+# Brands marked feed_price_to in botvin/data/brands.yaml (UGG, Carhartt) get
+# their own search automatically. Set to false to turn that off.
+auto_brand_feeds: true
+
 # Override or add brands without touching botvin/data/brands.yaml:
 # brands:
 #   "Acne Studios":

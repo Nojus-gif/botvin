@@ -1,7 +1,11 @@
 # Resale reference table.
 #
-# Optional per brand: `min_profit` / `min_margin` raise the bar for that brand
-# above the global thresholds (used for Adidas).
+# Optional per brand:
+#   min_profit / min_margin  raise the bar above the global thresholds (Adidas)
+#   instant: true            sells within minutes: always top priority, lower
+#                            margin accepted, no waiting for likes
+#   feed_price_to: N         the bot adds its own search for this brand (<= N EUR)
+#   season: winter|summer    overrides the category's season curve
 #
 # `base` = what a used item in "very good" condition from this brand typically
 # RESELLS for on Vinted (EUR) when it is a regular jacket, at neutral season.
@@ -150,8 +154,10 @@ brands:
     overrides: {shoes: 75, boots: 80}
   "Carhartt":
     aliases: ["carhartt", "carhartt wip"]
-    base: 65
-    overrides: {pants: 45, hoodie: 40, tshirt: 20}
+    base: 75
+    overrides: {coat: 85, pants: 45, hoodie: 40, tshirt: 20}
+    instant: true          # Detroit / Michigan jackets sell within a minute
+    feed_price_to: 70      # gets its own search, capped at this price
   "Napapijri":
     aliases: ["napapijri"]
     base: 55
@@ -205,7 +211,10 @@ brands:
   "UGG":
     aliases: ["ugg", "uggs"]
     base: 50
-    overrides: {boots: 55}
+    overrides: {shoes: 70, boots: 75}
+    season: winter         # UGGs are winter shoes whatever the title says
+    instant: true          # sell within a minute
+    feed_price_to: 45
     # Cheaper brands often tagged as UGG; if the title names one, it isn't UGG.
     other_brands: ["emu", "bearpaw", "inuikii", "mou", "shepherd", "australia luxe", "ugg style"]
   "Timberland":
@@ -346,6 +355,13 @@ premium_keywords:
   "titanium": {mult: 1.2}
   "bedale": {mult: 1.2, category: coat}
   "beaufort": {mult: 1.2, category: coat}
-  "detroit": {mult: 1.3, category: jacket}
+  "detroit": {mult: 1.6, category: jacket}
+  "michigan": {mult: 1.4, category: jacket}
+  "active jacket": {mult: 1.3, category: jacket}
+  "tazz": {mult: 1.3}
+  "ultra mini": {mult: 1.3}
+  "tasman": {mult: 1.3}
+  "platform": {mult: 1.15}
+  "platformos": {mult: 1.15}
   "ghost piece": {mult: 1.3}
   "maya": {mult: 1.2, category: puffer}
