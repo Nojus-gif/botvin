@@ -784,3 +784,9 @@ def test_golden_goose_and_philippe_model():
     est = model.estimate(pm, when=NOV)
     assert est.brand == "Philippe Model" and est.category == "shoes" and 70 <= est.resale <= 110
     assert model.match_brand(make("GGDB sneakers", 50, ""))[0] == "Golden Goose"
+
+
+def test_golden_goose_only_up_to_75():
+    for price, ok in ((70, True), (75, True), (80, False)):
+        it = make("Golden Goose Superstar", price, "Golden Goose", size="38", status="Labai gera")
+        assert evaluate(it, model.estimate(it, when=NOV), Thresholds()).is_deal == ok, price

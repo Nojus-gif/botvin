@@ -86,7 +86,8 @@ brands:
   "Golden Goose":
     aliases: ["golden goose", "golden goose deluxe brand", "ggdb", "golden gose", "goldengoose"]
     default_category: shoes   # "Golden Goose Superstar 38" is a sneaker
-    feed_price_to: 100        # own search: the broad one stops at 60 EUR
+    max_buy: 75               # only worth buying at 75 EUR or less (incl. Vinted fee)
+    feed_price_to: 75         # own search: the broad one stops at 60 EUR
     base: 150
     overrides: {shoes: 150, boots: 160, tshirt: 45, hoodie: 70, sweater: 80, bag: 120}
     colours: {white: 1.1, black: 1.0, grey: 1.0, beige: 1.0, brown: 0.95, pink: 0.95, blue: 0.9,
